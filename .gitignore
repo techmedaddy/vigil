@@ -1,0 +1,48 @@
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+env/
+venv/
+.vscode/
+.idea/
+*.log
+
+# === Go ===
+*.exe
+*.out
+*.test
+*.o
+*.a
+*.so
+*.dll
+*.tmp
+go.sum
+bin/
+build/
+dist/
+coverage/
+*.db
+
+# === OS junk ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Environment files ===
+.env
+.env.local
+*.env.*
+
+# === Virtual environments ===
+.venv/
+ENV/
+env.bak/
+
+# === Node (future UI) ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
