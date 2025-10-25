@@ -4,7 +4,7 @@ Vigil is an opinionated, developer-focused self-healing infrastructure system. I
 
 ## Architecture
 
-```mermaid
+```bash
 flowchart LR
   subgraph Collector [Collector (FastAPI)]
     CDB[(SQLite)]
