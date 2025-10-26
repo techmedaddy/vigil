@@ -1,0 +1,3 @@
+db_path: "python/app/vigil.db"
+port: 8000
+remediator_url: "http://127.0.0.1:8081/remediate"
