@@ -1,0 +1,3 @@
+interval: 15
+manifests_path: "../manifests/"
+collector_url: "http://127.0.0.1:8000/actions"

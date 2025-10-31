@@ -9,7 +9,8 @@ import (
 	"time"
 
 	// Assuming 'vigil' is the Go module name defined in go.mod
-	"vigil/go/gitopsd/pkg/gitopsd"
+	"vigil/gitopsd/pkg/gitopsd"
+
 )
 
 var (
