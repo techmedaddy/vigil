@@ -8,6 +8,11 @@ import json
 import yaml
 from dotenv import load_dotenv
 
+# --- Import Evaluator ---
+# Assuming evaluator.py is in the same 'app' directory
+from app.services.evaluator import evaluate_policies
+
+
 # --- Configuration Loading ---
 load_dotenv()  # Load .env file, environment variables take precedence
 
@@ -94,7 +99,7 @@ def call_remediator(payload: dict):
         print(f"Remediator call failed: {e}")
 
 
-# --- Existing Endpoints (Unchanged) ---
+# --- Endpoints ---
 
 @app.post("/ingest")
 async def ingest(request: Request, background_tasks: BackgroundTasks):
@@ -109,22 +114,35 @@ async def ingest(request: Request, background_tasks: BackgroundTasks):
         return {"error": "missing 'name' or 'value'"}, 400
 
     try:
+        # Convert value to float once for DB and evaluation
+        val_float = float(value)
         with get_db() as conn:
-            conn.execute("INSERT INTO metrics (name, value) VALUES (?, ?)", (name, float(value)))
+            conn.execute("INSERT INTO metrics (name, value) VALUES (?, ?)", (name, val_float))
             conn.commit()
+    except (ValueError, TypeError):
+        return {"error": f"invalid value type for: {value}"}, 400
     except Exception as e:
         print(f"DB write failed: {e}")
         return {"error": "db error"}, 500
 
-    # Alert condition
-    if name == "cpu_usage":
-        try:
-            v = float(value)
-            if v > 0.8:
-                print(f"HIGH_CPU: {v:.2f} → scheduling remediation")
-                background_tasks.add_task(call_remediator, {"service": "backend", "reason": "high_cpu", "value": v})
-        except Exception:
-            pass  # Fail silently if value conversion fails
+    # --- Policy Evaluation ---
+    try:
+        triggered_actions = evaluate_policies(name, val_float)
+        
+        for action in triggered_actions:
+            print(f"Policy triggered: {action['policy']} ({name} > threshold) → {action['action']} on {action['target']}")
+            payload = {
+                "service": action["target"],
+                "action": action["action"],
+                "policy": action["policy"],
+                "value": val_float
+            }
+            background_tasks.add_task(call_remediator, payload)
+            
+    except Exception as e:
+        # Do not block ingest if evaluation fails; just log it
+        print(f"Policy evaluation failed: {e}")
+    # --- End Policy Evaluation ---
 
     return {"ok": True}
 
@@ -158,10 +176,13 @@ class ActionRequest(BaseModel):
 async def create_action(action: ActionRequest):
     """Logs a new action to the database."""
     try:
+        # Serialize details if it's a dict/list
+        details_str = json.dumps(action.details) if isinstance(action.details, (dict, list)) else action.details
+
         with get_db() as conn:
             cursor = conn.execute(
                 "INSERT INTO actions (target, action, status, details) VALUES (?, ?, ?, ?)",
-                (action.target, action.action, action.status, action.details)
+                (action.target, action.action, action.status, details_str)
             )
             conn.commit()
             return {"ok": True, "id": cursor.lastrowid}
