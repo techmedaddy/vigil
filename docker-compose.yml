@@ -1,0 +1,102 @@
+version: "3.9"
+
+services:
+  # -------------------------
+  # Core Infrastructure
+  # -------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: vigil_redis
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: vigil_postgres
+    environment:
+      POSTGRES_USER: vigil
+      POSTGRES_PASSWORD: vigilpass
+      POSTGRES_DB: vigil
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # -------------------------
+  # Python API (Collector + Policy Engine)
+  # -------------------------
+  api:
+    image: python:3.12-slim
+    container_name: vigil_api
+    working_dir: /app
+    volumes:
+      - ./python:/app
+      - ./configs:/app/configs
+      - ./manifests:/app/manifests
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://vigil:vigilpass@postgres:5432/vigil
+      - REDIS_URL=redis://redis:6379/0
+    command: >
+      sh -c "pip install --no-cache-dir fastapi uvicorn redis psycopg2-binary pyyaml python-dotenv &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+
+  # -------------------------
+  # Go GitOps Daemon
+  # -------------------------
+  gitopsd:
+    image: golang:1.22-alpine
+    container_name: vigil_gitopsd
+    working_dir: /workspace
+    volumes:
+      - ./go:/workspace/go
+      - ./configs:/workspace/configs
+      - ./manifests:/workspace/manifests
+    command: >
+      sh -c "cd /workspace/go && go run ./gitopsd/cmd/gitopsd/main.go"
+    depends_on:
+      - api
+      - redis
+
+  # -------------------------
+  # Go Agent (Metrics Producer)
+  # -------------------------
+  agent:
+    image: golang:1.22-alpine
+    container_name: vigil_agent
+    working_dir: /workspace
+    volumes:
+      - ./go:/workspace/go
+      - ./configs:/workspace/configs
+    command: >
+      sh -c "cd /workspace/go && go run ./agent/cmd/agent/main.go"
+    depends_on:
+      - api
+      - redis
+
+  # -------------------------
+  # Go Remediator
+  # -------------------------
+  remediator:
+    image: golang:1.22-alpine
+    container_name: vigil_remediator
+    working_dir: /workspace
+    volumes:
+      - ./go:/workspace/go
+      - ./configs:/workspace/configs
+    command: >
+      sh -c "cd /workspace/go && go run ./remediator/cmd/remediator/main.go"
+    depends_on:
+      - api
+      - redis
+
+# -------------------------
+# Volumes
+# -------------------------
+volumes:
+  pg_data:

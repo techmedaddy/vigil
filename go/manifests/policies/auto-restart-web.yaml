@@ -1,0 +1,6 @@
+name: auto-restart-web
+match_metric: cpu_usage
+threshold: 0.8
+action: restart
+target: backend
+cooldown: 300
