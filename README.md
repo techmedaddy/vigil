@@ -5,28 +5,30 @@ Vigil is an opinionated, developer-focused self-healing infrastructure system. I
 ## Architecture
 
 ```bash
-flowchart LR
-  subgraph Collector [Collector (FastAPI)]
-    CDB[(SQLite)]
-    CAPI[/ingest\n/query\n/actions/]
-  end
+ ┌──────────────┐        ┌────────────────┐        ┌────────────────────┐
+ │   Agent (Go) │  --->  │  Collector/API │  --->  │   SQLite Database  │
+ │  (metrics)   │        │  (FastAPI app) │        │   (vigil.db)       │
+ └──────────────┘        └────────────────┘        └────────────────────┘
+          │                         │
+          │                         │
+          │                         ▼
+          │               ┌────────────────┐
+          │               │  Policy Engine │
+          │               │ (Python module)│
+          │               └────────────────┘
+          │                         │
+          │                         ▼
+          │               ┌────────────────┐
+          │               │ Remediator (Go)│
+          │               │ auto-actions   │
+          │               └────────────────┘
+          │                         │
+          ▼                         ▼
+ ┌────────────────┐         ┌────────────────┐
+ │ GitOpsD (Go)   │  --->   │ Collector/API  │
+ │ (drift watcher)│         │   /actions     │
+ └────────────────┘         └────────────────┘
 
-  subgraph Agent [Agent (Go)]
-    AGENT[agent]
-  end
-
-  subgraph Remediator [Remediator (Go)]
-    REM[remediator]
-  end
-
-  AGENT -->|POST /ingest| CAPI
-  CAPI -->|INSERT| CDB
-  CAPI -->|POST /remediate (if cpu>0.8)| REM
-  REM -->|POST /actions| CAPI
-
-  style Collector fill:#f9f,stroke:#333,stroke-width:1px
-  style Agent fill:#9f9,stroke:#333,stroke-width:1px
-  style Remediator fill:#99f,stroke:#333,stroke-width:1px
 ```
 
 ## Features
