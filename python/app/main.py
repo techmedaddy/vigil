@@ -1,4 +1,7 @@
 from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 import sqlite3
@@ -9,9 +12,14 @@ import yaml
 from dotenv import load_dotenv
 
 # --- Import Evaluator ---
-# Assuming evaluator.py is in the same 'app' directory
-from app.services.evaluator import evaluate_policies
-
+# Assuming evaluator.py is in the 'app' directory or a discoverable path
+try:
+    from app.evaluator import evaluate_policies
+except ImportError:
+    print("Warning: Could not import 'app.evaluator'. Policy evaluation will be skipped.")
+    # Define a dummy function to prevent crashes if import fails
+    def evaluate_policies(name: str, value: float) -> list:
+        return []
 
 # --- Configuration Loading ---
 load_dotenv()  # Load .env file, environment variables take precedence
@@ -43,17 +51,35 @@ REMEDIATOR_URL = os.getenv("REMEDIATOR_URL", config.get("remediator_url"))
 
 app = FastAPI(title="Vigil Collector")
 
+# --- CORS Middleware ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
+# --- Static Files ---
+# Define the path to the static directory
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir)
+    print(f"Created static directory: {static_dir}")
+
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+dashboard_html_path = os.path.join(static_dir, "dashboard.html")
+
+# --- Database Setup ---
 
 def init_db():
     """Initializes the database and creates tables if they don't exist."""
-    # Ensure the directory for the DB exists
     db_dir = os.path.dirname(DB_PATH)
     if db_dir and not os.path.exists(db_dir):
         os.makedirs(db_dir, exist_ok=True)
         print(f"Created database directory: {db_dir}")
 
     with sqlite3.connect(DB_PATH) as conn:
-        # Existing metrics table
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS metrics (
@@ -64,7 +90,6 @@ def init_db():
             )
             """
         )
-        # New actions table
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS actions (
@@ -86,10 +111,9 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-
-# Initialize DB on startup
 init_db()
 
+# --- Background Tasks ---
 
 def call_remediator(payload: dict):
     """Background task to call the remediator service."""
@@ -99,7 +123,47 @@ def call_remediator(payload: dict):
         print(f"Remediator call failed: {e}")
 
 
-# --- Endpoints ---
+# --- Dashboard & New API Endpoints ---
+
+@app.get("/dashboard", response_class=FileResponse)
+async def get_dashboard():
+    """Serves the main dashboard HTML file."""
+    if not os.path.exists(dashboard_html_path):
+        raise HTTPException(status_code=404, detail="dashboard.html not found. Please create it in the 'static' directory.")
+    return FileResponse(dashboard_html_path)
+
+
+@app.get("/metrics/live")
+async def get_live_metrics():
+    """Returns the 30 most recent cpu_usage metrics for the dashboard."""
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT name, value, ts FROM metrics WHERE name = 'cpu_usage' ORDER BY ts DESC LIMIT 30"
+            ).fetchall()
+            result = [dict(r) for r in rows]
+            return {"metrics": result}
+    except Exception as e:
+        print(f"Live metrics DB read failed: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
+
+
+@app.get("/drift")
+async def get_drift_actions():
+    """Returns the 50 most recent drift-related ('reconcile') actions."""
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, target, action, status, details, started_at FROM actions WHERE action = 'reconcile' ORDER BY started_at DESC LIMIT 50"
+            ).fetchall()
+            result = [dict(r) for r in rows]
+            return {"actions": result}
+    except Exception as e:
+        print(f"Drift actions DB read failed: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
+
+
+# --- Existing Endpoints ---
 
 @app.post("/ingest")
 async def ingest(request: Request, background_tasks: BackgroundTasks):
@@ -114,7 +178,6 @@ async def ingest(request: Request, background_tasks: BackgroundTasks):
         return {"error": "missing 'name' or 'value'"}, 400
 
     try:
-        # Convert value to float once for DB and evaluation
         val_float = float(value)
         with get_db() as conn:
             conn.execute("INSERT INTO metrics (name, value) VALUES (?, ?)", (name, val_float))
@@ -130,7 +193,7 @@ async def ingest(request: Request, background_tasks: BackgroundTasks):
         triggered_actions = evaluate_policies(name, val_float)
         
         for action in triggered_actions:
-            print(f"Policy triggered: {action['policy']} ({name} > threshold) → {action['action']} on {action['target']}")
+            print(f"Policy triggered: {action['policy']} ({name} threshold) → {action['action']} on {action['target']}")
             payload = {
                 "service": action["target"],
                 "action": action["action"],
@@ -140,7 +203,6 @@ async def ingest(request: Request, background_tasks: BackgroundTasks):
             background_tasks.add_task(call_remediator, payload)
             
     except Exception as e:
-        # Do not block ingest if evaluation fails; just log it
         print(f"Policy evaluation failed: {e}")
     # --- End Policy Evaluation ---
 
@@ -162,21 +224,20 @@ def query(limit: int = 10):
         return {"error": "db error"}, 500
 
 
-# --- New Action Endpoints ---
+# --- Action Endpoints ---
 
 class ActionRequest(BaseModel):
     """Pydantic model for validating a new action request."""
     target: str
     action: str
     status: str
-    details: Optional[str] = None
+    details: Optional[str | dict | list] = None
 
 
 @app.post("/actions", status_code=201)
 async def create_action(action: ActionRequest):
     """Logs a new action to the database."""
     try:
-        # Serialize details if it's a dict/list
         details_str = json.dumps(action.details) if isinstance(action.details, (dict, list)) else action.details
 
         with get_db() as conn:
@@ -204,4 +265,3 @@ async def get_actions():
     except Exception as e:
         print(f"Action DB read failed: {e}")
         raise HTTPException(status_code=500, detail="Database error")
-
