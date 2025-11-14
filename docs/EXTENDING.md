@@ -75,11 +75,11 @@ Steps:
 
 ## Adding Remediation Actions (Go Remediator)
 
-1. Implement a handler in `go/remediator/pkg/actions`. Handlers satisfy an interface (e.g., `Execute(ctx context.Context, req Request) Result`).
-2. Register the handler in `go/remediator/pkg/actions/registry.go` (map from action string to handler).
-3. Add configuration support in `configs/remediator.yaml` under the `actions:` list and parse it in `go/remediator/pkg/config`.
-4. Ensure audit logging captures success/failure via `go/remediator/pkg/audit` when the handler completes.
-5. Write unit tests with `go test ./go/remediator/pkg/actions/...` and add integration coverage using docker-compose when dependent systems are involved.
+- Implement a handler in `go/remediator/pkg/actions`. Handlers satisfy an interface (e.g., `Execute(ctx context.Context, req Request) Result`).
+- Register the handler in `go/remediator/pkg/actions/registry.go` (map from action string to handler).
+- Add configuration support in `configs/remediator.yaml` under the `actions:` list and parse it in `go/remediator/pkg/config`.
+- Ensure audit logging captures success/failure via `go/remediator/pkg/audit` when the handler completes.
+- Write unit tests with `go test ./go/remediator/pkg/actions/...` and add integration coverage using docker-compose when dependent systems are involved.
 
 ## Extending GitOpsD (Go)
 
@@ -97,9 +97,9 @@ Steps:
 
 ## Exposing New API Endpoints (FastAPI Collector)
 
-1. Create a router module in `python/app/routes/`, e.g., `python/app/routes/alerts.py`.
-2. Define Pydantic models in `python/app/schemas/alerts.py` and business logic in `python/app/services/alerts.py`.
-3. Register the router in `python/app/main.py`:
+- Create a router module in `python/app/routes/`, e.g., `python/app/routes/alerts.py`.
+- Define Pydantic models in `python/app/schemas/alerts.py` and business logic in `python/app/services/alerts.py`.
+- Register the router in `python/app/main.py`:
 
 ```python
 from app.routes import alerts
@@ -107,8 +107,8 @@ from app.routes import alerts
 app.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
 ```
 
-4. Add tests under `python/app/tests/routes/test_alerts.py` using FastAPI's `TestClient`.
-5. Document the endpoint in OpenAPI by leveraging FastAPI's docstrings and ensure authentication decorators guard sensitive routes.
+- Add tests under `python/app/tests/routes/test_alerts.py` using FastAPI's `TestClient`.
+- Document the endpoint in OpenAPI by leveraging FastAPI's docstrings and ensure authentication decorators guard sensitive routes.
 
 ## Replacing PostgreSQL
 
