@@ -74,24 +74,25 @@ This repository favors clarity over production-hardening and receives frequent c
 |        Dashboard UI         |
 | (python/app/static/*.html)  |
 +-------------+---------------+
-			  |
-			  v
+
+              |
+              v
 ┌───────────┐   metrics   ┌──────────────────┐   state   ┌─────────────┐
 │ Go Agent  │ ───────────▶│  Collector/API   │ ────────▶│ PostgreSQL* │
 │ (metrics) │             │  FastAPI + eval  │          │   /SQLite   │
 └───────────┘             └─────────┬────────┘          └─────────────┘
-									  │
-									  │ remediation requests
-									  v
-							 ┌──────────────────┐
-							 │   Remediator     │
-							 │  (Go handlers)   │
-							 └─────────┬────────┘
-									  │ audits
-									  v
-							 ┌──────────────────┐
-							 │   /actions API   │
-							 └──────────────────┘
+                                     │
+                                     │ remediation requests
+                                     v
+                            ┌──────────────────┐
+                            │   Remediator     │
+                            │  (Go handlers)   │
+                            └─────────┬────────┘
+                                     │ audits
+                                     v
+                            ┌──────────────────┐
+                            │   /actions API   │
+                            └──────────────────┘
 
 ┌───────────┐   manifests   ┌──────────────────┐
 │ GitOpsD   │──────────────▶│ Collector /actions│
