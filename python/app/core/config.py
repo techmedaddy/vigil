@@ -107,6 +107,28 @@ class Settings(BaseSettings):
         description="Enable debug mode"
     )
 
+    # Rate limiting configuration
+    RATE_LIMIT_ENABLED: bool = Field(
+        default=True,
+        description="Enable rate limiting middleware"
+    )
+
+    RATE_LIMIT_REQUESTS: int = Field(
+        default=100,
+        description="Maximum number of requests allowed per time window per IP"
+    )
+
+    RATE_LIMIT_PERIOD: int = Field(
+        default=60,
+        description="Time window in seconds for rate limiting"
+    )
+
+    # Audit logging configuration
+    AUDIT_LOGGING_ENABLED: bool = Field(
+        default=True,
+        description="Enable audit logging middleware"
+    )
+
     @validator("COLLECTOR_PORT", "AGENT_INTERVAL", "GITOPSD_INTERVAL")
     def validate_positive(cls, v):
         """Ensure numeric values are positive."""
