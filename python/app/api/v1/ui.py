@@ -10,14 +10,18 @@ It includes:
 - Static file serving integration
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Optional
+from datetime import datetime, timedelta
+from sqlalchemy import select, desc
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from python.app.core.logger import get_logger
+from python.app.core.db import Alert, Action, get_session
 
 # Get router logger
 logger = get_logger(__name__)
@@ -410,6 +414,256 @@ async def health_check() -> Dict[str, str]:
     """
     logger.debug("UI health check requested")
     return {"status": "ok"}
+
+
+async def get_active_policies() -> Dict[str, Dict]:
+    """
+    Fetch active policies from the policy registry.
+    
+    Returns:
+        Dict mapping policy name to policy details (condition, action, severity, target)
+    """
+    try:
+        from python.app.core.policy import get_policy_registry
+        
+        registry = get_policy_registry()
+        policies_list = registry.get_enabled()
+        
+        active_policies = {}
+        for policy in policies_list:
+            active_policies[policy.name] = {
+                "name": policy.name,
+                "condition": str(policy.condition) if policy.condition else "N/A",
+                "action": policy.action.name if hasattr(policy.action, 'name') else str(policy.action),
+                "severity": policy.severity.name if hasattr(policy.severity, 'name') else str(policy.severity),
+                "target": policy.target,
+                "auto_remediate": policy.auto_remediate,
+            }
+        
+        return active_policies
+    except ImportError:
+        logger.warning("Policy registry not available")
+        return {}
+    except Exception as e:
+        logger.error(
+            "Failed to fetch active policies",
+            error=str(e),
+            exc_info=True
+        )
+        return {}
+
+
+async def get_recent_violations(hours: int = 24) -> List[Dict]:
+    """
+    Fetch recent policy violations (alerts) from the database.
+    
+    Args:
+        hours: Number of hours to look back (default: 24)
+    
+    Returns:
+        List of violation records with timestamp, severity, name, and details
+    """
+    try:
+        async with get_session() as session:
+            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            
+            stmt = select(Alert).where(
+                Alert.triggered_at >= cutoff_time
+            ).order_by(
+                desc(Alert.triggered_at)
+            ).limit(100)
+            
+            result = await session.execute(stmt)
+            alerts = result.scalars().all()
+            
+            violations = []
+            for alert in alerts:
+                violations.append({
+                    "id": alert.id,
+                    "policy_name": alert.name,
+                    "severity": alert.severity,
+                    "condition": alert.condition,
+                    "timestamp": alert.triggered_at.isoformat() if alert.triggered_at else None,
+                    "resolved": alert.resolved_at is not None,
+                    "resolved_at": alert.resolved_at.isoformat() if alert.resolved_at else None,
+                    "details": alert.details,
+                })
+            
+            return violations
+    except Exception as e:
+        logger.error(
+            "Failed to fetch recent violations",
+            error=str(e),
+            exc_info=True
+        )
+        return []
+
+
+async def get_remediation_logs(hours: int = 24, limit: int = 50) -> List[Dict]:
+    """
+    Fetch remediation action logs from the database.
+    
+    Args:
+        hours: Number of hours to look back (default: 24)
+        limit: Maximum number of records to return (default: 50)
+    
+    Returns:
+        List of action logs with target, action, status, timestamp, and details
+    """
+    try:
+        async with get_session() as session:
+            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            
+            stmt = select(Action).where(
+                Action.started_at >= cutoff_time
+            ).order_by(
+                desc(Action.started_at)
+            ).limit(limit)
+            
+            result = await session.execute(stmt)
+            actions = result.scalars().all()
+            
+            logs = []
+            for action in actions:
+                logs.append({
+                    "id": action.id,
+                    "target": action.target,
+                    "action": action.action,
+                    "status": action.status,
+                    "timestamp": action.started_at.isoformat() if action.started_at else None,
+                    "detail": action.details,
+                })
+            
+            return logs
+    except Exception as e:
+        logger.error(
+            "Failed to fetch remediation logs",
+            error=str(e),
+            exc_info=True
+        )
+        return []
+
+
+@router.get(
+    "/policies",
+    summary="Get Policy Status",
+    description="Get comprehensive policy information, violations, and remediation logs for dashboard display"
+)
+async def get_policy_status(request: Request) -> Dict:
+    """
+    Get comprehensive policy information for dashboard display.
+    
+    Returns:
+        Dict containing:
+        - active_policies: Currently enabled policies with details
+        - recent_violations: Policy violations from last 24 hours
+        - remediation_logs: Remediation actions from last 24 hours
+        - runner_status: Policy runner state and configuration
+        - timestamp: Response generation timestamp
+    """
+    request_start = datetime.utcnow()
+    
+    try:
+        from python.app.core.policy import get_policy_registry
+        from python.app.core.policy_runner import get_policy_runner_status
+        
+        # Audit logging - log policy status request
+        logger.info(
+            "Policy status request received",
+            client_ip=request.client.host if request.client else "unknown",
+            user_agent=request.headers.get("user-agent", "unknown"),
+            method=request.method,
+            path=request.url.path,
+        )
+        
+        # Fetch active policies
+        active_policies = await get_active_policies()
+        
+        # Fetch recent violations from Alert table
+        recent_violations = await get_recent_violations(hours=24)
+        
+        # Fetch remediation logs from Action table
+        remediation_logs = await get_remediation_logs(hours=24)
+        
+        # Get policy registry stats
+        registry = get_policy_registry()
+        enabled_count = len([p for p in registry.get_enabled()])
+        total_count = len(registry.list_policies())
+        runner_status = get_policy_runner_status()
+        
+        response_time = (datetime.utcnow() - request_start).total_seconds()
+        
+        response_data = {
+            "ok": True,
+            "timestamp": datetime.utcnow().isoformat(),
+            "response_time_seconds": round(response_time, 3),
+            "summary": {
+                "total_policies": total_count,
+                "enabled_policies": enabled_count,
+                "recent_violations": len(recent_violations),
+                "remediation_actions": len(remediation_logs),
+            },
+            "active_policies": active_policies,
+            "recent_violations": recent_violations,
+            "remediation_logs": remediation_logs,
+            "runner_status": runner_status,
+        }
+        
+        # Audit log - successful response
+        logger.info(
+            "Policy status returned successfully",
+            client_ip=request.client.host if request.client else "unknown",
+            total_policies=total_count,
+            enabled_policies=enabled_count,
+            recent_violations=len(recent_violations),
+            remediation_actions=len(remediation_logs),
+            response_time_seconds=response_time,
+        )
+        
+        return response_data
+        
+    except ImportError as e:
+        logger.warning(
+            "Policy engine not available",
+            error=str(e),
+        )
+        return {
+            "ok": True,
+            "timestamp": datetime.utcnow().isoformat(),
+            "summary": {
+                "total_policies": 0,
+                "enabled_policies": 0,
+                "recent_violations": 0,
+                "remediation_actions": 0,
+            },
+            "active_policies": {},
+            "recent_violations": [],
+            "remediation_logs": [],
+            "runner_status": {
+                "enabled": False,
+                "running": False,
+                "message": "Policy engine not available"
+            }
+        }
+    except Exception as e:
+        logger.error(
+            "Failed to get policy status",
+            error=str(e),
+            client_ip=request.client.host if request.client else "unknown",
+            exc_info=True
+        )
+        return {
+            "ok": False,
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": "Failed to retrieve policy status",
+            "error_detail": str(e) if str(e) else "Unknown error",
+            "summary": {
+                "total_policies": 0,
+                "enabled_policies": 0,
+                "recent_violations": 0,
+                "remediation_actions": 0,
+            }
+        }
 
 
 def mount_static_files(app) -> None:

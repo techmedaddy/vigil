@@ -22,6 +22,13 @@ from python.app.core.config import get_settings
 logger = get_logger(__name__)
 settings = get_settings()
 
+# Import metrics module (optional - will use if metrics enabled)
+try:
+    from python.app.core import metrics
+    metrics_available = True
+except ImportError:
+    metrics_available = False
+
 
 # --- Request ID Middleware ---
 
@@ -116,6 +123,7 @@ class TimingMiddleware(BaseHTTPMiddleware):
 
         # Calculate response time
         process_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        process_time_seconds = process_time / 1000  # For metrics in seconds
 
         # Get response size
         response_size = 0
@@ -140,10 +148,87 @@ class TimingMiddleware(BaseHTTPMiddleware):
             response_size_bytes=response_size,
         )
 
+        # Record Prometheus metrics if enabled
+        if metrics_available and getattr(settings, "METRICS_ENABLED", True):
+            try:
+                metrics.record_request(
+                    method=request.method,
+                    endpoint=request.url.path,
+                    status=response.status_code,
+                    latency_seconds=process_time_seconds,
+                )
+            except Exception as e:
+                logger.warning("Failed to record metrics", error=str(e))
+
         # Store in request state for audit logging
         request.state.response_time_ms = process_time
         request.state.request_size_bytes = request_size
         request.state.response_size_bytes = response_size
+
+        return response
+
+
+# --- Metrics Middleware ---
+
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware for collecting Prometheus metrics.
+
+    - Tracks request counts by method, endpoint, and status code
+    - Records request latency by endpoint
+    - Configurable via settings (METRICS_ENABLED)
+    - Graceful fallback if prometheus_client unavailable
+    """
+
+    def __init__(self, app, enabled: bool = True):
+        """
+        Initialize metrics middleware.
+
+        Args:
+            app: FastAPI application
+            enabled: Whether metrics collection is enabled
+        """
+        super().__init__(app)
+        self.enabled = enabled and metrics_available
+
+        if self.enabled:
+            logger.info("Metrics middleware initialized")
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        """
+        Process request and collect metrics.
+
+        Args:
+            request: FastAPI Request object
+            call_next: Next middleware/endpoint handler
+
+        Returns:
+            Response with metrics recorded
+        """
+        if not self.enabled:
+            return await call_next(request)
+
+        start_time = time.time()
+
+        # Process request
+        response = await call_next(request)
+
+        # Calculate latency
+        latency_seconds = time.time() - start_time
+
+        # Record metrics
+        try:
+            metrics.record_request(
+                method=request.method,
+                endpoint=request.url.path,
+                status=response.status_code,
+                latency_seconds=latency_seconds,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to record metrics in middleware",
+                error=str(e),
+            )
 
         return response
 
@@ -341,7 +426,13 @@ def register_middleware(app) -> None:
     # 1. Audit logging (innermost - runs first on request, last on response)
     app.add_middleware(AuditLoggingMiddleware)
 
-    # 2. Rate limiting
+    # 2. Metrics collection
+    app.add_middleware(
+        MetricsMiddleware,
+        enabled=getattr(settings, "METRICS_ENABLED", True),
+    )
+
+    # 3. Rate limiting
     app.add_middleware(
         RateLimitMiddleware,
         enabled=getattr(settings, "RATE_LIMIT_ENABLED", True),
@@ -349,14 +440,14 @@ def register_middleware(app) -> None:
         window_seconds=getattr(settings, "RATE_LIMIT_PERIOD", 60),
     )
 
-    # 3. Timing
+    # 4. Timing
     app.add_middleware(TimingMiddleware)
 
-    # 4. Request ID (outermost - runs last on request, first on response)
+    # 5. Request ID (outermost - runs last on request, first on response)
     app.add_middleware(RequestIDMiddleware)
 
     logger.info(
         "Middleware stack registered",
-        middlewares=["RequestID", "Timing", "RateLimit", "AuditLogging"],
+        middlewares=["RequestID", "Timing", "RateLimit", "Metrics", "AuditLogging"],
     )
 

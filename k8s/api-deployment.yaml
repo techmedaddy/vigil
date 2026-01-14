@@ -1,0 +1,596 @@
+---
+# Vigil API Deployment Configuration
+# Kubernetes manifest for deploying Vigil API with Prometheus monitoring
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vigil-api-config
+  namespace: default
+  labels:
+    app: vigil
+    component: api
+data:
+  CONFIG_PATH: "/etc/vigil/config"
+  LOG_LEVEL: "INFO"
+  SERVICE_NAME: "vigil-api"
+  METRICS_ENABLED: "true"
+  METRICS_ENDPOINT: "/metrics"
+  POLICY_RUNNER_ENABLED: "true"
+  POLICY_RUNNER_INTERVAL: "30"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vigil-api-secrets
+  namespace: default
+  labels:
+    app: vigil
+    component: api
+type: Opaque
+stringData:
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_USER: "vigil"
+  DB_PASSWORD: "vigil"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vigil-api
+  namespace: default
+  labels:
+    app: vigil
+    component: api
+    version: v1
+  annotations:
+    description: "Vigil Policy Monitoring and Remediation API"
+    maintainer: "vigil-team"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: vigil
+      component: api
+  template:
+    metadata:
+      labels:
+        app: vigil
+        component: api
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Pod anti-affinity for better distribution
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - vigil
+                    - key: component
+                      operator: In
+                      values:
+                        - api
+                topologyKey: kubernetes.io/hostname
+
+      # Service account for RBAC
+      serviceAccountName: vigil-api
+      automountServiceAccountToken: true
+
+      # Init containers - wait for dependencies
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.35
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for PostgreSQL..."
+              until nc -z postgres 5432; do
+                echo "PostgreSQL is unavailable - sleeping"
+                sleep 2
+              done
+              echo "PostgreSQL is up"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+        - name: wait-for-redis
+          image: busybox:1.35
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Redis..."
+              until nc -z redis 6379; do
+                echo "Redis is unavailable - sleeping"
+                sleep 2
+              done
+              echo "Redis is up"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+      # Main containers
+      containers:
+        # Primary Vigil API container
+        - name: vigil-api
+          image: vigil-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          
+          # Environment variables from ConfigMap and Secret
+          envFrom:
+            - configMapRef:
+                name: vigil-api-config
+            - secretRef:
+                name: vigil-api-secrets
+          
+          # Additional environment variables
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+
+          # Liveness probe - restart if unhealthy
+          livenessProbe:
+            httpGet:
+              path: /ui/health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Readiness probe - remove from service if not ready
+          readinessProbe:
+            httpGet:
+              path: /ui/health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 2
+
+          # Startup probe - give container time to start
+          startupProbe:
+            httpGet:
+              path: /ui/health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 0
+            periodSeconds: 2
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 30
+
+          # Resource requests and limits
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          # Volume mounts
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vigil/config
+              readOnly: true
+            - name: logs
+              mountPath: /var/log/vigil
+            - name: tmp
+              mountPath: /tmp
+
+          # Security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+
+          # Lifecycle hooks
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - sleep 5
+
+        # Prometheus metrics exporter sidecar
+        - name: prometheus-exporter
+          image: prom/prometheus:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          
+          # Arguments for Prometheus
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=24h"
+            - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+            - "--web.console.templates=/usr/share/prometheus/consoles"
+            - "--web.listen-address=:9090"
+          
+          # Liveness probe for Prometheus
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: metrics
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Readiness probe for Prometheus
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: metrics
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+
+          # Resources for Prometheus exporter
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+          # Volume mounts
+          volumeMounts:
+            - name: prometheus-config
+              mountPath: /etc/prometheus
+              readOnly: true
+            - name: prometheus-storage
+              mountPath: /prometheus
+
+          # Security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+      # Volumes
+      volumes:
+        - name: config
+          configMap:
+            name: vigil-api-config
+            defaultMode: 0644
+        - name: logs
+          emptyDir:
+            sizeLimit: 500Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+        - name: prometheus-config
+          configMap:
+            name: vigil-prometheus-config
+            defaultMode: 0644
+        - name: prometheus-storage
+          emptyDir:
+            sizeLimit: 1Gi
+
+      # Pod security policies
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+
+      # DNS configuration
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "2"
+          - name: edns0
+
+      # Termination grace period for graceful shutdown
+      terminationGracePeriodSeconds: 30
+
+      # Restart policy
+      restartPolicy: Always
+
+---
+# ServiceAccount for RBAC
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vigil-api
+  namespace: default
+  labels:
+    app: vigil
+    component: api
+
+---
+# ClusterRole for Vigil API
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vigil-api
+  labels:
+    app: vigil
+    component: api
+rules:
+  # Read pods information
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  # Read nodes information
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  # Read services
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+  # Read deployments
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  # Read events
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+
+---
+# ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vigil-api
+  labels:
+    app: vigil
+    component: api
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vigil-api
+subjects:
+  - kind: ServiceAccount
+    name: vigil-api
+    namespace: default
+
+---
+# Service to expose the API
+apiVersion: v1
+kind: Service
+metadata:
+  name: vigil-api
+  namespace: default
+  labels:
+    app: vigil
+    component: api
+  annotations:
+    description: "Vigil API Service"
+spec:
+  type: ClusterIP
+  selector:
+    app: vigil
+    component: api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      targetPort: http
+    - name: metrics
+      protocol: TCP
+      port: 9090
+      targetPort: metrics
+  sessionAffinity: None
+  publishNotReadyAddresses: false
+
+---
+# HorizontalPodAutoscaler for auto-scaling
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: vigil-api
+  namespace: default
+  labels:
+    app: vigil
+    component: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: vigil-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    # Scale on CPU usage
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    # Scale on memory usage
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 15
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 2
+          periodSeconds: 15
+      selectPolicy: Max
+
+---
+# NetworkPolicy for security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vigil-api
+  namespace: default
+  labels:
+    app: vigil
+    component: api
+spec:
+  podSelector:
+    matchLabels:
+      app: vigil
+      component: api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Prometheus
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 9090
+    # Allow from ingress controller
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Allow to PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow to Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow to external services
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+
+---
+# Prometheus configuration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vigil-prometheus-config
+  namespace: default
+  labels:
+    app: vigil
+    component: api
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'vigil'
+        component: 'api'
+        pod_name: '$POD_NAME'
+        namespace: '$POD_NAMESPACE'
+    
+    scrape_configs:
+      # Scrape Vigil API metrics
+      - job_name: 'vigil-api'
+        static_configs:
+          - targets: ['localhost:8000']
+        metrics_path: '/metrics'
+        scrape_interval: 10s
+        scrape_timeout: 5s
+        
+      # Scrape Prometheus self-metrics
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']

@@ -11,6 +11,7 @@ Lightweight application factory that:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from contextlib import asynccontextmanager
 
 from python.app.core.config import get_settings
@@ -21,6 +22,34 @@ from python.app.core.tasks import start_all_background_tasks, cancel_all_backgro
 from python.app.api.v1.ingest import router as ingest_router
 from python.app.api.v1.actions import router as actions_router
 from python.app.api.v1.ui import router as ui_router, mount_static_files
+
+# Import policies router if available
+try:
+    from python.app.api.v1.policies import router as policies_router
+    policies_router_available = True
+except ImportError:
+    policies_router_available = False
+
+# Import metrics if available
+try:
+    from python.app.core import metrics
+    metrics_available = True
+except ImportError:
+    metrics_available = False
+
+# Import policy engine
+try:
+    from python.app.core.policy import initialize_policies
+    policy_engine_available = True
+except ImportError:
+    policy_engine_available = False
+
+# Import policy runner
+try:
+    from python.app.core.policy_runner import start_policy_runner, stop_policy_runner
+    policy_runner_available = True
+except ImportError:
+    policy_runner_available = False
 
 # Initialize logging
 configure_logging()
@@ -67,6 +96,30 @@ async def lifespan(app: FastAPI):
         )
         raise
     
+    # Initialize policy engine
+    if policy_engine_available:
+        try:
+            initialize_policies()
+            logger.info("Policy engine initialized")
+        except Exception as e:
+            logger.warning(
+                "Policy engine initialization failed",
+                error=str(e),
+                exc_info=True
+            )
+    
+    # Start policy runner
+    if policy_runner_available:
+        try:
+            await start_policy_runner()
+            logger.info("Policy runner started")
+        except Exception as e:
+            logger.warning(
+                "Policy runner startup failed",
+                error=str(e),
+                exc_info=True
+            )
+    
     # Start background tasks
     try:
         await start_all_background_tasks()
@@ -82,6 +135,18 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("Application shutting down")
+    
+    # Stop policy runner
+    if policy_runner_available:
+        try:
+            await stop_policy_runner()
+            logger.info("Policy runner stopped")
+        except Exception as e:
+            logger.error(
+                "Error stopping policy runner",
+                error=str(e),
+                exc_info=True
+            )
     
     try:
         await cancel_all_background_tasks()
@@ -128,13 +193,36 @@ register_middleware(app)
 # --- Mount Static Files ---
 mount_static_files(app)
 
+# --- Metrics Endpoint ---
+if metrics_available and settings.METRICS_ENABLED:
+    @app.get(settings.METRICS_ENDPOINT, include_in_schema=False)
+    async def get_metrics():
+        """
+        Expose Prometheus metrics in text format.
+
+        This endpoint returns metrics collected by the application for monitoring
+        with Prometheus or compatible tools.
+        """
+        return Response(
+            content=metrics.get_metrics(),
+            media_type=metrics.get_metrics_content_type(),
+        )
+
+    logger.info(
+        "Prometheus metrics endpoint registered",
+        endpoint=settings.METRICS_ENDPOINT,
+    )
+
 # --- Include Routers ---
 app.include_router(ingest_router, prefix="/api/v1")
 app.include_router(actions_router, prefix="/api/v1")
 app.include_router(ui_router, prefix="/api/v1")
 
+if policies_router_available:
+    app.include_router(policies_router, prefix="/api/v1")
+
 logger.info(
     "Application initialized",
-    routers=["ingest", "actions", "ui"],
+    routers=["ingest", "actions", "ui", "policies"] if policies_router_available else ["ingest", "actions", "ui"],
     background_tasks=["agent", "gitopsd"]
 )

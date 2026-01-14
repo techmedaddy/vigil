@@ -15,6 +15,13 @@ from python.app.core.db import get_db, Metric
 from python.app.core.logger import get_logger
 from python.app.core.config import get_settings
 
+# Import policy engine if available
+try:
+    from python.app.core.policy import evaluate_policies
+    policy_engine_available = True
+except ImportError:
+    policy_engine_available = False
+
 logger = get_logger(__name__)
 
 # Create router with /ingest prefix
@@ -241,63 +248,51 @@ async def ingest_metric(
         )
 
         # --- Policy Evaluation ---
-        if evaluator is not None:
+        if policy_engine_available:
             try:
-                triggered_actions = evaluator(payload.name, payload.value)
+                # Prepare metrics dict for policy evaluation
+                metrics_dict = {payload.name: payload.value}
+                if payload.tags:
+                    metrics_dict.update(payload.tags)
 
-                if triggered_actions:
+                # Evaluate policies
+                eval_result = await evaluate_policies(metrics_dict)
+
+                violations = eval_result.get("violations", [])
+                actions_triggered = eval_result.get("actions_triggered", [])
+
+                if violations:
                     logger.warning(
-                        f"Policy triggered: {len(triggered_actions)} action(s)",
-                        extra={
-                            "metric_name": payload.name,
-                            "metric_value": payload.value,
-                            "action_count": len(triggered_actions)
-                        }
+                        "Policy violations detected during metric ingestion",
+                        metric_name=payload.name,
+                        metric_value=payload.value,
+                        violations_count=len(violations),
                     )
 
-                    # Trigger remediation for each action
-                    for action in triggered_actions:
-                        remediation_payload = {
-                            "service": action.get("target"),
-                            "action": action.get("action"),
-                            "policy": action.get("policy"),
-                            "metric_name": payload.name,
-                            "metric_value": payload.value,
-                            "metric_id": metric.id
-                        }
-
-                        logger.info(
-                            f"Queuing remediation: {action.get('policy')} → {action.get('action')}",
-                            extra={
-                                "target": action.get("target"),
-                                "action": action.get("action"),
-                                "policy": action.get("policy")
-                            }
+                    # Log audit trail for each violation
+                    for violation in violations:
+                        logger.warning(
+                            "Policy violation detected",
+                            policy_name=violation.get("policy_name"),
+                            severity=violation.get("severity"),
+                            target=violation.get("target"),
+                            metric_name=payload.name,
+                            metric_id=metric.id,
                         )
 
-                        if background_tasks:
-                            background_tasks.add_task(
-                                trigger_remediation,
-                                remediation_payload,
-                                settings.REMEDIATOR_URL
-                            )
-                else:
-                    logger.debug(
-                        "No policies triggered",
-                        extra={
-                            "metric_name": payload.name,
-                            "metric_value": payload.value
-                        }
+                if actions_triggered:
+                    logger.info(
+                        "Remediation actions triggered",
+                        metric_name=payload.name,
+                        action_count=len(actions_triggered),
                     )
 
             except Exception as e:
                 logger.error(
-                    f"Policy evaluation failed: {e}",
-                    extra={
-                        "metric_name": payload.name,
-                        "metric_value": payload.value
-                    },
-                    exc_info=True
+                    "Policy evaluation failed",
+                    metric_name=payload.name,
+                    error=str(e),
+                    exc_info=True,
                 )
                 # Don't fail the ingest if policy evaluation fails
         # --- End Policy Evaluation ---

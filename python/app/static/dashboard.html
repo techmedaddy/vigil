@@ -19,7 +19,7 @@
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         
@@ -29,6 +29,13 @@
             padding: 30px;
             margin-bottom: 30px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-title {
+            flex: 1;
         }
         
         h1 {
@@ -42,9 +49,21 @@
             font-size: 16px;
         }
         
+        .refresh-info {
+            text-align: right;
+            color: #999;
+            font-size: 12px;
+        }
+        
+        .refresh-info .last-update {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
         .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -70,10 +89,18 @@
             padding-bottom: 10px;
         }
         
+        .card h3 {
+            color: #764ba2;
+            font-size: 14px;
+            margin: 15px 0 10px 0;
+            font-weight: 600;
+        }
+        
         .card p {
             color: #666;
             line-height: 1.6;
             margin-bottom: 15px;
+            font-size: 14px;
         }
         
         .metric {
@@ -91,12 +118,17 @@
         .metric-label {
             color: #666;
             font-weight: 500;
+            font-size: 14px;
         }
         
         .metric-value {
             color: #667eea;
             font-weight: bold;
-            font-size: 18px;
+            font-size: 16px;
+        }
+        
+        .metric-value.large {
+            font-size: 24px;
         }
         
         .status {
@@ -117,9 +149,84 @@
             color: #856404;
         }
         
-        .status.error {
+        .status.critical {
             background: #f8d7da;
             color: #721c24;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .status.disabled {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+        
+        table thead {
+            background: #f8f9fa;
+        }
+        
+        table th {
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        table td {
+            padding: 10px;
+            border-bottom: 1px solid #dee2e6;
+            color: #666;
+        }
+        
+        table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-style: italic;
+        }
+        
+        .policy-name {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .violation-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .violation-item {
+            padding: 10px;
+            margin: 8px 0;
+            border-left: 4px solid #667eea;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .violation-item.critical {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+        
+        .violation-item.warning {
+            border-left-color: #ffc107;
+            background: #fffbf0;
         }
         
         .endpoint-list {
@@ -131,6 +238,7 @@
             padding: 10px 0;
             border-bottom: 1px solid #eee;
             color: #666;
+            font-size: 14px;
         }
         
         .endpoint-list li:last-child {
@@ -150,13 +258,14 @@
         
         .endpoint-method {
             display: inline-block;
-            width: 60px;
-            padding: 3px 8px;
+            width: 50px;
+            padding: 3px 6px;
             border-radius: 4px;
             font-weight: bold;
-            font-size: 12px;
-            margin-right: 10px;
+            font-size: 11px;
+            margin-right: 8px;
             color: white;
+            text-align: center;
         }
         
         .method-get {
@@ -169,6 +278,11 @@
         
         .method-delete {
             background: #dc3545;
+        }
+        
+        .method-put {
+            background: #ffc107;
+            color: #333;
         }
         
         .footer {
@@ -188,23 +302,91 @@
             border-radius: 4px;
             font-weight: bold;
             transition: background 0.2s;
+            font-size: 14px;
         }
         
         .api-docs-link:hover {
             background: #764ba2;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-size: 13px;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .wide-card {
+            grid-column: 1 / -1;
+        }
+        
+        .section-title {
+            color: #667eea;
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 12px;
+            margin-bottom: 8px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🚨 Vigil Monitoring System</h1>
-            <p class="subtitle">Real-time infrastructure monitoring and automated remediation</p>
+            <div class="header-title">
+                <h1>🚨 Vigil Monitoring System</h1>
+                <p class="subtitle">Real-time infrastructure monitoring and automated remediation</p>
+            </div>
+            <div class="refresh-info">
+                <div>Auto-refresh: <strong>Every 5 seconds</strong></div>
+                <div class="last-update">Last update: <span id="lastUpdate">--</span></div>
+            </div>
         </header>
         
         <div class="dashboard-grid">
+            <!-- Live Metrics Section -->
+            <div class="card wide-card">
+                <h2>📊 Live Metrics</h2>
+                <div id="metricsContent">
+                    <div class="loading"><span class="spinner"></span>Loading metrics...</div>
+                </div>
+            </div>
+            
+            <!-- Policies Section -->
             <div class="card">
-                <h2>📊 System Status</h2>
+                <h2>📋 Policies</h2>
+                <div id="policiesContent">
+                    <div class="loading"><span class="spinner"></span>Loading policies...</div>
+                </div>
+            </div>
+            
+            <!-- Policy Runner Status -->
+            <div class="card">
+                <h2>⚡ Runner Status</h2>
+                <div id="runnerContent">
+                    <div class="loading"><span class="spinner"></span>Loading status...</div>
+                </div>
+            </div>
+            
+            <!-- System Status -->
+            <div class="card">
+                <h2>📈 System Status</h2>
                 <div class="metric">
                     <span class="metric-label">Service Status</span>
                     <span class="status healthy">Healthy</span>
@@ -219,66 +401,26 @@
                 </div>
             </div>
             
+            <!-- Quick Links -->
             <div class="card">
-                <h2>🔌 Quick Links</h2>
+                <h2>🔌 API Endpoints</h2>
                 <ul class="endpoint-list">
                     <li><span class="endpoint-method method-post">POST</span>/api/v1/ingest - Submit metrics</li>
-                    <li><span class="endpoint-method method-get">GET</span>/api/v1/actions - List remediation actions</li>
-                    <li><span class="endpoint-method method-post">POST</span>/api/v1/actions - Create action</li>
-                    <li><span class="endpoint-method method-get">GET</span>/api/v1/queries - Query historical data</li>
+                    <li><span class="endpoint-method method-get">GET</span>/api/v1/actions - List actions</li>
+                    <li><span class="endpoint-method method-get">GET</span>/api/v1/policies - List policies</li>
+                    <li><span class="endpoint-method method-post">POST</span>/api/v1/policies/evaluate - Evaluate</li>
                 </ul>
-                <a href="/docs" class="api-docs-link">📖 API Documentation</a>
+                <a href="/docs" class="api-docs-link">📖 Full API Docs</a>
             </div>
             
-            <div class="card">
-                <h2>📈 Metrics Summary</h2>
-                <div class="metric">
-                    <span class="metric-label">Total Metrics</span>
-                    <span class="metric-value">--</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">Active Alerts</span>
-                    <span class="metric-value">--</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">Remediation Actions</span>
-                    <span class="metric-value">--</span>
-                </div>
-            </div>
-            
-            <div class="card">
-                <h2>⚙️ Configuration</h2>
-                <div class="metric">
-                    <span class="metric-label">Environment</span>
-                    <span class="metric-value">Production</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">Evaluator</span>
-                    <span class="status healthy">Enabled</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">Logging</span>
-                    <span class="metric-value">JSON</span>
-                </div>
-            </div>
-            
-            <div class="card">
-                <h2>🔧 Components</h2>
-                <ul class="endpoint-list">
-                    <li>✅ Metrics Ingestion</li>
-                    <li>✅ Policy Evaluation</li>
-                    <li>✅ Action Management</li>
-                    <li>✅ Data Queries</li>
-                </ul>
-            </div>
-            
+            <!-- Resources -->
             <div class="card">
                 <h2>📚 Resources</h2>
                 <ul class="endpoint-list">
                     <li><a href="/docs">Interactive API Docs (Swagger)</a></li>
                     <li><a href="/redoc">API Reference (ReDoc)</a></li>
                     <li><a href="/openapi.json">OpenAPI Schema</a></li>
-                    <li><a href="/ui/health">Health Check</a></li>
+                    <li><a href="/metrics">Prometheus Metrics</a></li>
                 </ul>
             </div>
         </div>
@@ -289,8 +431,218 @@
     </div>
     
     <script>
-        // Placeholder for dynamic updates
-        console.log('Vigil Dashboard loaded successfully');
+        // Configuration
+        const REFRESH_INTERVAL = 5000; // 5 seconds
+        const METRICS_ENDPOINT = '/metrics';
+        const POLICIES_ENDPOINT = '/api/v1/ui/policies';
+        
+        // Format timestamp
+        function formatTimestamp(isoString) {
+            if (!isoString) return '--';
+            const date = new Date(isoString);
+            return date.toLocaleTimeString();
+        }
+        
+        // Format duration
+        function formatDuration(seconds) {
+            if (seconds < 0.001) return '< 1ms';
+            if (seconds < 1) return Math.round(seconds * 1000) + 'ms';
+            return seconds.toFixed(2) + 's';
+        }
+        
+        // Fetch and display metrics
+        async function updateMetrics() {
+            try {
+                const response = await fetch(METRICS_ENDPOINT);
+                if (!response.ok) throw new Error('Failed to fetch metrics');
+                
+                const text = await response.text();
+                const lines = text.split('\n').filter(line => line && !line.startsWith('#'));
+                
+                const metrics = {};
+                for (const line of lines) {
+                    const parts = line.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)\{?([^}]*)\}?\s+([\d.eE+-]+)/);
+                    if (parts) {
+                        const metricName = parts[1];
+                        const value = parseFloat(parts[3]);
+                        if (!metrics[metricName] || value > metrics[metricName]) {
+                            metrics[metricName] = value;
+                        }
+                    }
+                }
+                
+                const html = buildMetricsHTML(metrics);
+                document.getElementById('metricsContent').innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error updating metrics:', error);
+                document.getElementById('metricsContent').innerHTML = `
+                    <div class="empty-state">Unable to load metrics</div>
+                `;
+            }
+        }
+        
+        // Build metrics HTML
+        function buildMetricsHTML(metrics) {
+            const requestsTotal = metrics['requests_total'] || 0;
+            const actionsTotal = metrics['actions_total'] || 0;
+            const requestLatency = metrics['request_latency_seconds'] || 0;
+            
+            return `
+                <div class="metric">
+                    <span class="metric-label">Total Requests</span>
+                    <span class="metric-value large">${Math.round(requestsTotal)}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Total Actions</span>
+                    <span class="metric-value large">${Math.round(actionsTotal)}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avg Latency</span>
+                    <span class="metric-value">${formatDuration(requestLatency)}</span>
+                </div>
+                <div class="section-title">Prometheus Metrics Available</div>
+                <p style="font-size: 12px; color: #999;">
+                    Scrape endpoint: <code>/metrics</code><br>
+                    Metrics include request counts, latency histograms, and action tracking.
+                </p>
+            `;
+        }
+        
+        // Fetch and display policies
+        async function updatePolicies() {
+            try {
+                const response = await fetch(POLICIES_ENDPOINT);
+                if (!response.ok) throw new Error('Failed to fetch policies');
+                
+                const data = await response.json();
+                const html = buildPoliciesHTML(data);
+                document.getElementById('policiesContent').innerHTML = html;
+                
+                // Update runner status
+                const runnerHTML = buildRunnerHTML(data.runner_status);
+                document.getElementById('runnerContent').innerHTML = runnerHTML;
+                
+            } catch (error) {
+                console.error('Error updating policies:', error);
+                document.getElementById('policiesContent').innerHTML = `
+                    <div class="empty-state">Unable to load policies</div>
+                `;
+            }
+        }
+        
+        // Build policies HTML
+        function buildPoliciesHTML(data) {
+            if (!data.policies || Object.keys(data.policies).length === 0) {
+                return '<div class="empty-state">No policies configured</div>';
+            }
+            
+            let html = `
+                <div class="metric">
+                    <span class="metric-label">Total Policies</span>
+                    <span class="metric-value">${data.total_policies}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Enabled</span>
+                    <span class="metric-value">${data.enabled_policies}</span>
+                </div>
+                <div class="section-title">Active Policies</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Severity</th>
+                            <th>Target</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            for (const [name, policy] of Object.entries(data.policies)) {
+                const severityClass = policy.severity.toLowerCase();
+                const statusBadge = policy.enabled ? 
+                    `<span class="status healthy">Enabled</span>` : 
+                    `<span class="status disabled">Disabled</span>`;
+                
+                html += `
+                    <tr>
+                        <td class="policy-name">${name}</td>
+                        <td><span class="status ${severityClass}">${policy.severity.charAt(0).toUpperCase() + policy.severity.slice(1)}</span></td>
+                        <td>${policy.target}</td>
+                        <td>${statusBadge}</td>
+                    </tr>
+                `;
+            }
+            
+            html += `
+                    </tbody>
+                </table>
+            `;
+            
+            return html;
+        }
+        
+        // Build runner status HTML
+        function buildRunnerHTML(runner) {
+            if (!runner) {
+                return '<div class="empty-state">Runner status unavailable</div>';
+            }
+            
+            const statusBadge = runner.running ? 
+                `<span class="status healthy">Running</span>` : 
+                `<span class="status disabled">Stopped</span>`;
+            
+            const enabledBadge = runner.enabled ? 
+                `<span class="status healthy">Enabled</span>` : 
+                `<span class="status info">Disabled</span>`;
+            
+            return `
+                <div class="metric">
+                    <span class="metric-label">Runner Enabled</span>
+                    ${enabledBadge}
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Runner Status</span>
+                    ${statusBadge}
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Check Interval</span>
+                    <span class="metric-value">${runner.interval_seconds || '--'}s</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Batch Size</span>
+                    <span class="metric-value">${runner.batch_size || '--'}</span>
+                </div>
+            `;
+        }
+        
+        // Update last update timestamp
+        function updateTimestamp() {
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+        
+        // Initial load
+        async function initialize() {
+            updateTimestamp();
+            await updateMetrics();
+            await updatePolicies();
+        }
+        
+        // Set up periodic refresh
+        setInterval(async () => {
+            updateTimestamp();
+            await updateMetrics();
+            await updatePolicies();
+        }, REFRESH_INTERVAL);
+        
+        // Initialize on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initialize);
+        } else {
+            initialize();
+        }
     </script>
 </body>
 </html>
+

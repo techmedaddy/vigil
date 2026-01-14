@@ -129,7 +129,34 @@ class Settings(BaseSettings):
         description="Enable audit logging middleware"
     )
 
-    @validator("COLLECTOR_PORT", "AGENT_INTERVAL", "GITOPSD_INTERVAL")
+    # Metrics configuration
+    METRICS_ENABLED: bool = Field(
+        default=True,
+        description="Enable Prometheus metrics collection and endpoint"
+    )
+
+    METRICS_ENDPOINT: str = Field(
+        default="/metrics",
+        description="HTTP endpoint path for exposing Prometheus metrics"
+    )
+
+    # Policy runner configuration
+    POLICY_RUNNER_ENABLED: bool = Field(
+        default=True,
+        description="Enable policy runner for continuous policy evaluation"
+    )
+
+    POLICY_RUNNER_INTERVAL: float = Field(
+        default=30.0,
+        description="Interval in seconds for policy evaluation checks"
+    )
+
+    POLICY_RUNNER_BATCH_SIZE: int = Field(
+        default=100,
+        description="Number of recent metrics to fetch per evaluation cycle"
+    )
+
+    @validator("COLLECTOR_PORT", "AGENT_INTERVAL", "GITOPSD_INTERVAL", "POLICY_RUNNER_INTERVAL")
     def validate_positive(cls, v):
         """Ensure numeric values are positive."""
         if isinstance(v, (int, float)) and v <= 0:

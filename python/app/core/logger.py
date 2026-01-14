@@ -3,6 +3,7 @@ Structured logging utility for Vigil monitoring system.
 
 Provides JSON-formatted logging with structured output suitable for ELK/Prometheus ingestion.
 Includes FastAPI middleware for request/response cycle tracking.
+Includes dedicated audit logging for policies and remediations.
 """
 
 import json
@@ -11,7 +12,7 @@ import os
 import time
 import uuid
 from datetime import datetime
-from typing import Callable
+from typing import Callable, Optional, Any, Dict
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -244,3 +245,187 @@ def configure_logging() -> None:
 
 # Module-level logger instance
 logger = get_logger(__name__)
+
+# --- Audit Logger Configuration ---
+# Separate dedicated audit logger for policy and remediation events
+audit_logger = get_logger("vigil.audit")
+audit_logger.setLevel(logging.INFO)
+
+
+# --- Audit Logging Helper Functions ---
+
+def get_request_id() -> str:
+    """
+    Get current request ID from context if available.
+    
+    Returns:
+        Request ID string or "no-request-id" if not available
+    """
+    return getattr(RequestContextVar, "request_id", "no-request-id")
+
+
+def log_policy_evaluation(
+    policy_name: str,
+    condition: str,
+    result: bool,
+    severity: str,
+    request_id: Optional[str] = None,
+    additional_context: Optional[Dict[str, Any]] = None
+) -> None:
+    """
+    Log a policy evaluation event for audit trail.
+    
+    Args:
+        policy_name: Name of the policy evaluated
+        condition: Condition expression or description
+        result: Whether the condition evaluated to true
+        severity: Policy severity level (INFO, WARNING, CRITICAL)
+        request_id: Optional request ID (auto-fetched if not provided)
+        additional_context: Optional dict with additional fields
+    
+    Example:
+        log_policy_evaluation(
+            policy_name="high_cpu_alert",
+            condition="cpu_usage > 80%",
+            result=True,
+            severity="CRITICAL"
+        )
+    """
+    if request_id is None:
+        request_id = get_request_id()
+    
+    audit_event = {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "event_type": "policy_evaluation",
+        "request_id": request_id,
+        "policy_name": policy_name,
+        "condition": condition,
+        "evaluation_result": result,
+        "severity": severity,
+    }
+    
+    if additional_context:
+        audit_event.update(additional_context)
+    
+    audit_logger.info(
+        f"Policy evaluation: {policy_name} -> {result}",
+        extra=audit_event
+    )
+
+
+def log_policy_violation(
+    policy_name: str,
+    metrics: Dict[str, Any],
+    action: str,
+    severity: str,
+    request_id: Optional[str] = None,
+    additional_context: Optional[Dict[str, Any]] = None
+) -> None:
+    """
+    Log a policy violation event when a condition is triggered.
+    
+    Args:
+        policy_name: Name of the policy that was violated
+        metrics: Dict of metrics that triggered the violation
+        action: Action to be taken (e.g., "SCALE_UP", "RESTART_SERVICE")
+        severity: Violation severity level (INFO, WARNING, CRITICAL)
+        request_id: Optional request ID (auto-fetched if not provided)
+        additional_context: Optional dict with additional fields
+    
+    Example:
+        log_policy_violation(
+            policy_name="high_cpu_alert",
+            metrics={"cpu_usage": 95.5, "threshold": 80},
+            action="SCALE_UP",
+            severity="CRITICAL"
+        )
+    """
+    if request_id is None:
+        request_id = get_request_id()
+    
+    # Serialize metrics safely
+    try:
+        metrics_str = json.dumps(metrics, default=str)
+    except Exception:
+        metrics_str = str(metrics)
+    
+    audit_event = {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "event_type": "policy_violation",
+        "request_id": request_id,
+        "policy_name": policy_name,
+        "metrics": metrics,
+        "action_triggered": action,
+        "severity": severity,
+    }
+    
+    if additional_context:
+        audit_event.update(additional_context)
+    
+    audit_logger.warning(
+        f"Policy violation: {policy_name} triggered action {action}",
+        extra=audit_event
+    )
+
+
+def log_remediation(
+    target: str,
+    action: str,
+    status: str,
+    detail: str,
+    request_id: Optional[str] = None,
+    additional_context: Optional[Dict[str, Any]] = None
+) -> None:
+    """
+    Log a remediation action execution for audit trail.
+    
+    Args:
+        target: Target resource (e.g., service name, pod name, instance ID)
+        action: Action performed (e.g., "RESTART", "SCALE_UP", "DRAIN_POD")
+        status: Status of the action (e.g., "SUCCESS", "FAILED", "IN_PROGRESS")
+        detail: Detailed message about the action
+        request_id: Optional request ID (auto-fetched if not provided)
+        additional_context: Optional dict with additional fields
+    
+    Example:
+        log_remediation(
+            target="web-service-1",
+            action="RESTART",
+            status="SUCCESS",
+            detail="Service restarted successfully after 2.5 seconds"
+        )
+    """
+    if request_id is None:
+        request_id = get_request_id()
+    
+    # Determine log level based on status
+    log_level = logging.ERROR if status == "FAILED" else logging.INFO
+    
+    audit_event = {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "event_type": "remediation_action",
+        "request_id": request_id,
+        "target": target,
+        "action": action,
+        "status": status,
+        "detail": detail,
+    }
+    
+    if additional_context:
+        audit_event.update(additional_context)
+    
+    # Log at appropriate level
+    audit_logger.log(
+        log_level,
+        f"Remediation: {action} on {target} -> {status}",
+        extra=audit_event
+    )
+
+
+# Module-level logger instance
+logger = get_logger(__name__)
+
+# --- Audit Logger Configuration ---
+# Separate dedicated audit logger for policy and remediation events
+audit_logger = get_logger("vigil.audit")
+audit_logger.setLevel(logging.INFO)

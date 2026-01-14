@@ -1,0 +1,354 @@
+---
+# Vigil Agent Deployment Configuration
+# Kubernetes manifest for deploying Vigil Agent for monitoring and collecting metrics
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vigil-agent-config
+  namespace: default
+  labels:
+    app: vigil
+    component: agent
+data:
+  CONFIG_PATH: "/etc/vigil/agent/config"
+  LOG_LEVEL: "INFO"
+  SERVICE_NAME: "vigil-agent"
+  METRICS_ENABLED: "true"
+  AGENT_INTERVAL: "10"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vigil-agent-secrets
+  namespace: default
+  labels:
+    app: vigil
+    component: agent
+type: Opaque
+stringData:
+  API_HOST: "vigil-api.default.svc.cluster.local"
+  API_PORT: "8000"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vigil-agent
+  namespace: default
+  labels:
+    app: vigil
+    component: agent
+    version: v1
+  annotations:
+    description: "Vigil Agent for monitoring and metric collection"
+    maintainer: "vigil-team"
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: vigil
+      component: agent
+  template:
+    metadata:
+      labels:
+        app: vigil
+        component: agent
+        version: v1
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      # Service account for RBAC
+      serviceAccountName: vigil-agent
+      automountServiceAccountToken: true
+
+      # Restart policy
+      restartPolicy: Always
+
+      # DNS policy
+      dnsPolicy: ClusterFirst
+
+      # Termination grace period for graceful shutdown
+      terminationGracePeriodSeconds: 30
+
+      # Containers
+      containers:
+        - name: vigil-agent
+          image: vigil-agent:latest
+          imagePullPolicy: IfNotPresent
+
+          # Port configuration (no exposed port needed for agent)
+          # Agent runs as a collector, not a server
+
+          # Environment variables
+          env:
+            # From ConfigMap
+            - name: CONFIG_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-agent-config
+                  key: CONFIG_PATH
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-agent-config
+                  key: LOG_LEVEL
+            - name: SERVICE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-agent-config
+                  key: SERVICE_NAME
+            - name: METRICS_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-agent-config
+                  key: METRICS_ENABLED
+            - name: AGENT_INTERVAL
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-agent-config
+                  key: AGENT_INTERVAL
+
+            # From Secret
+            - name: API_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: vigil-agent-secrets
+                  key: API_HOST
+            - name: API_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: vigil-agent-secrets
+                  key: API_PORT
+
+            # Pod-provided environment variables
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+
+          # Resource management
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+          # Security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+
+          # Volume mounts
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vigil/agent/config
+              readOnly: true
+            - name: logs
+              mountPath: /var/log/vigil
+            - name: tmp
+              mountPath: /tmp
+
+          # Liveness probe - monitors agent health
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "ps aux | grep vigil-agent | grep -v grep"
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Startup probe - gives agent time to initialize
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "ps aux | grep vigil-agent | grep -v grep"
+            initialDelaySeconds: 0
+            periodSeconds: 2
+            timeoutSeconds: 3
+            failureThreshold: 30
+
+          # Lifecycle hooks
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - "sleep 5"
+
+      # Volumes
+      volumes:
+        - name: config
+          configMap:
+            name: vigil-agent-config
+            defaultMode: 0644
+        - name: logs
+          emptyDir:
+            sizeLimit: 500Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vigil-agent
+  namespace: default
+  labels:
+    app: vigil
+    component: agent
+automountServiceAccountToken: true
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vigil-agent
+  labels:
+    app: vigil
+    component: agent
+rules:
+  # Read pod information for monitoring
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  # Read pod logs for analysis
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list", "watch"]
+  # Read node information
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  # Read events for monitoring
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  # Read service information
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+  # Read deployment information
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vigil-agent
+  labels:
+    app: vigil
+    component: agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vigil-agent
+subjects:
+  - kind: ServiceAccount
+    name: vigil-agent
+    namespace: default
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vigil-agent
+  namespace: default
+  labels:
+    app: vigil
+    component: agent
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: vigil
+      component: agent
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vigil-agent-collector-config
+  namespace: default
+  labels:
+    app: vigil
+    component: agent
+data:
+  agent.yaml: |
+    # Vigil Agent Configuration
+    # Interval for metric collection and transmission (in seconds)
+    interval: 10
+
+    # Collector API endpoint for sending metrics
+    collector_url: "http://vigil-api.default.svc.cluster.local:8000/ingest"
+
+    # Metrics collection settings
+    metrics:
+      enabled: true
+      collect_interval: 10
+      batch_size: 100
+
+    # Node monitoring
+    node_monitoring:
+      enabled: true
+      collect_cpu: true
+      collect_memory: true
+      collect_disk: true
+      collect_network: true
+
+    # Pod monitoring
+    pod_monitoring:
+      enabled: true
+      namespaces:
+        - default
+        - kube-system
+      collect_resource_usage: true
+      collect_events: true
+
+    # Logging configuration
+    logging:
+      level: "INFO"
+      format: "json"
+      output: "stdout"
+
+    # Retry configuration
+    retry:
+      max_retries: 3
+      backoff_seconds: 5
+      timeout_seconds: 10

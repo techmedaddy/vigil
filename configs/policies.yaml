@@ -1,0 +1,105 @@
+policies:
+  # High CPU Usage Policy
+  - name: high-cpu-alert
+    description: "Alert and scale up when CPU usage exceeds 90%"
+    severity: warning
+    target: "web-*"
+    enabled: true
+    auto_remediate: true
+    condition:
+      type: metric_exceeds
+      metric: cpu_percent
+      threshold: 90
+    action: scale-up
+    params:
+      replicas: 2
+      increment: 1
+
+  # High Memory Usage Policy
+  - name: high-memory-alert
+    description: "Alert when memory usage exceeds 85%"
+    severity: warning
+    target: "all"
+    enabled: true
+    auto_remediate: false
+    condition:
+      type: metric_exceeds
+      metric: memory_percent
+      threshold: 85
+    action: custom
+    params:
+      notify: true
+
+  # Low Disk Space Policy
+  - name: low-disk-space
+    description: "Critical alert when free disk space drops below 5%"
+    severity: critical
+    target: "all"
+    enabled: true
+    auto_remediate: false
+    condition:
+      type: metric_below
+      metric: disk_free_percent
+      threshold: 5
+    action: custom
+    params:
+      notify: true
+      escalate: true
+
+  # Service Health Policy
+  - name: service-health-critical
+    description: "Restart service if health check fails"
+    severity: critical
+    target: "api-server"
+    enabled: true
+    auto_remediate: true
+    condition:
+      type: metric_exceeds
+      metric: health_check_failures
+      threshold: 3
+    action: restart-service
+    params:
+      graceful: true
+      timeout: 30
+
+  # Combined Condition Policy
+  - name: resource-exhaustion
+    description: "Scale up when both CPU and memory are high"
+    severity: warning
+    target: "services"
+    enabled: true
+    auto_remediate: true
+    condition:
+      type: all
+      conditions:
+        - type: metric_exceeds
+          metric: cpu_percent
+          threshold: 80
+        - type: metric_exceeds
+          metric: memory_percent
+          threshold: 80
+    action: scale-up
+    params:
+      replicas: 3
+      increment: 2
+
+  # Multiple Metrics Policy
+  - name: pod-drain-required
+    description: "Drain pod if multiple issues detected"
+    severity: warning
+    target: "pod-*"
+    enabled: false
+    auto_remediate: false
+    condition:
+      type: any
+      conditions:
+        - type: metric_exceeds
+          metric: restart_count
+          threshold: 5
+        - type: metric_exceeds
+          metric: error_rate
+          threshold: 10
+    action: drain-pod
+    params:
+      timeout: 60
+      grace_period: 30

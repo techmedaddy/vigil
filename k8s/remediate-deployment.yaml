@@ -1,0 +1,458 @@
+---
+# Vigil Remediator Deployment Configuration
+# Kubernetes manifest for deploying Vigil Remediator for automatic policy remediation
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vigil-remediator-config
+  namespace: default
+  labels:
+    app: vigil
+    component: remediator
+data:
+  CONFIG_PATH: "/etc/vigil/remediator/config"
+  LOG_LEVEL: "INFO"
+  SERVICE_NAME: "vigil-remediator"
+  REMEDIATION_PORT: "9100"
+  REMEDIATION_ENABLED: "true"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vigil-remediator-secrets
+  namespace: default
+  labels:
+    app: vigil
+    component: remediator
+type: Opaque
+stringData:
+  API_HOST: "vigil-api.default.svc.cluster.local"
+  API_PORT: "8000"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vigil-remediator
+  namespace: default
+  labels:
+    app: vigil
+    component: remediator
+    version: v1
+  annotations:
+    description: "Vigil Remediator for automatic policy remediation"
+    maintainer: "vigil-team"
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: vigil
+      component: remediator
+  template:
+    metadata:
+      labels:
+        app: vigil
+        component: remediator
+        version: v1
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      # Service account for RBAC
+      serviceAccountName: vigil-remediator
+      automountServiceAccountToken: true
+
+      # Restart policy
+      restartPolicy: Always
+
+      # DNS policy
+      dnsPolicy: ClusterFirst
+
+      # Termination grace period for graceful shutdown
+      terminationGracePeriodSeconds: 30
+
+      # Containers
+      containers:
+        - name: vigil-remediator
+          image: vigil-remediator:latest
+          imagePullPolicy: IfNotPresent
+
+          # Port configuration (internal port only)
+          ports:
+            - containerPort: 9100
+              name: remediation
+              protocol: TCP
+
+          # Environment variables
+          env:
+            # From ConfigMap
+            - name: CONFIG_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-remediator-config
+                  key: CONFIG_PATH
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-remediator-config
+                  key: LOG_LEVEL
+            - name: SERVICE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-remediator-config
+                  key: SERVICE_NAME
+            - name: REMEDIATION_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-remediator-config
+                  key: REMEDIATION_PORT
+            - name: REMEDIATION_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-remediator-config
+                  key: REMEDIATION_ENABLED
+
+            # From Secret
+            - name: API_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: vigil-remediator-secrets
+                  key: API_HOST
+            - name: API_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: vigil-remediator-secrets
+                  key: API_PORT
+
+            # Pod-provided environment variables
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+
+          # Resource management
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+          # Security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+
+          # Volume mounts
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vigil/remediator/config
+              readOnly: true
+            - name: logs
+              mountPath: /var/log/vigil
+            - name: tmp
+              mountPath: /tmp
+
+          # Liveness probe - monitors remediator health
+          livenessProbe:
+            httpGet:
+              path: /ui/health
+              port: 9100
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Readiness probe - checks if remediator is ready to accept remediation requests
+          readinessProbe:
+            httpGet:
+              path: /ui/health
+              port: 9100
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+
+          # Startup probe - gives remediator time to initialize
+          startupProbe:
+            httpGet:
+              path: /ui/health
+              port: 9100
+              scheme: HTTP
+            initialDelaySeconds: 0
+            periodSeconds: 2
+            timeoutSeconds: 3
+            failureThreshold: 30
+
+          # Lifecycle hooks
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - "sleep 5"
+
+      # Volumes
+      volumes:
+        - name: config
+          configMap:
+            name: vigil-remediator-config
+            defaultMode: 0644
+        - name: logs
+          emptyDir:
+            sizeLimit: 500Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vigil-remediator
+  namespace: default
+  labels:
+    app: vigil
+    component: remediator
+automountServiceAccountToken: true
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vigil-remediator
+  labels:
+    app: vigil
+    component: remediator
+rules:
+  # Read pod information for remediation decisions
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  # Execute remediation actions on pods
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "update", "patch", "delete"]
+  # Read pod logs for diagnostics
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  # Execute commands in pods for remediation
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+  # Read/write events for remediation audit trail
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+  # Read node information for diagnostics
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  # Restart deployments (rolling restart)
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  # Scale deployments if needed for remediation
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale", "statefulsets/scale"]
+    verbs: ["get", "update", "patch"]
+  # Read services for remediation context
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+  # Handle remediation via job execution
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # Cordon/uncordon nodes if needed
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vigil-remediator
+  labels:
+    app: vigil
+    component: remediator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vigil-remediator
+subjects:
+  - kind: ServiceAccount
+    name: vigil-remediator
+    namespace: default
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vigil-remediator
+  namespace: default
+  labels:
+    app: vigil
+    component: remediator
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: vigil
+      component: remediator
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vigil-remediator
+  namespace: default
+  labels:
+    app: vigil
+    component: remediator
+spec:
+  type: ClusterIP
+  selector:
+    app: vigil
+    component: remediator
+  ports:
+    - name: remediation
+      port: 9100
+      targetPort: 9100
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vigil-remediator-action-config
+  namespace: default
+  labels:
+    app: vigil
+    component: remediator
+data:
+  remediator.yaml: |
+    # Vigil Remediator Configuration
+    # Port for remediator API
+    port: 9100
+
+    # Collector API endpoint for remediation audit
+    collector_audit_url: "http://vigil-api.default.svc.cluster.local:8000/actions"
+
+    # Remediation execution settings
+    remediation:
+      enabled: true
+      auto_execute: false
+      require_approval: false
+      execution_timeout_seconds: 300
+      max_concurrent_actions: 5
+
+    # Action definitions and execution policies
+    actions:
+      restart_pod:
+        enabled: true
+        description: "Restart a pod to recover from transient failures"
+        timeout_seconds: 60
+        retry_count: 1
+
+      scale_deployment:
+        enabled: true
+        description: "Scale deployment replicas up or down"
+        timeout_seconds: 120
+        retry_count: 2
+
+      cordon_node:
+        enabled: true
+        description: "Cordon a node to prevent new pod scheduling"
+        timeout_seconds: 30
+        retry_count: 1
+
+      drain_node:
+        enabled: false
+        description: "Drain a node gracefully (disabled for safety)"
+        timeout_seconds: 600
+        retry_count: 0
+
+      execute_custom_script:
+        enabled: true
+        description: "Execute custom remediation script"
+        timeout_seconds: 300
+        retry_count: 2
+
+    # Audit and logging
+    audit:
+      enabled: true
+      log_actions: true
+      log_level: "INFO"
+      format: "json"
+      retention_days: 30
+
+    # Remediation policies
+    policies:
+      # Automatic recovery for CrashLoopBackOff
+      crash_loop_backoff:
+        enabled: true
+        action: "restart_pod"
+        max_restarts: 3
+        cooldown_seconds: 300
+
+      # High memory usage remediation
+      high_memory_usage:
+        enabled: true
+        action: "restart_pod"
+        threshold_percent: 90
+        cooldown_seconds: 600
+
+      # Pod eviction recovery
+      pod_eviction:
+        enabled: true
+        action: "restart_pod"
+        cooldown_seconds: 300
+
+      # Node pressure remediation
+      node_pressure:
+        enabled: true
+        action: "cordon_node"
+        pressure_types:
+          - MemoryPressure
+          - DiskPressure
+
+    # Integration settings
+    integration:
+      # Report remediation actions to API
+      report_actions: true
+      # Update policy status after remediation
+      update_policy_status: true
+      # Send webhooks on remediation completion
+      webhooks_enabled: false
