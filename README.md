@@ -1,5 +1,4 @@
-go build -o agent.exe main.go
-go build -o remediator.exe main.go
+
 # Vigil
 
 Vigil is a lightweight self-healing and drift-detection system inspired by GitOps and Kubernetes operators. It connects Go-based agents and remediation workers with a FastAPI control plane so metrics, policies, drift detection, and automated fixes can run end-to-end on a laptop, inside Docker, or in a cluster.
