@@ -11,13 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field, validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from python.app.core.db import get_db, Metric
-from python.app.core.logger import get_logger
-from python.app.core.config import get_settings
+from app.core.db import get_db, Metric
+from app.core.logger import get_logger
+from app.core.config import get_settings
 
 # Import policy engine if available
 try:
-    from python.app.core.policy import evaluate_policies
+    from app.core.policy import evaluate_policies
     policy_engine_available = True
 except ImportError:
     policy_engine_available = False
@@ -125,7 +125,7 @@ def get_evaluator():
         Policy evaluation function or None if not available.
     """
     try:
-        from python.app.services.evaluator import evaluate_policies
+        from app.services.evaluator import evaluate_policies
         return evaluate_policies
     except ImportError:
         logger.warning("Policy evaluator not available - policy evaluation will be skipped")

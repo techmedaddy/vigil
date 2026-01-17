@@ -20,8 +20,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from python.app.core.logger import get_logger
-from python.app.core.db import Alert, Action, get_session
+from app.core.logger import get_logger
+from app.core.db import Alert, Action, get_session
 
 # Get router logger
 logger = get_logger(__name__)
@@ -46,15 +46,11 @@ def ensure_static_dir():
     try:
         STATIC_DIR.mkdir(parents=True, exist_ok=True)
         logger.info(
-            "Static directory verified",
-            static_dir=str(STATIC_DIR),
-            exists=True
+            f"Static directory verified: {STATIC_DIR} (exists=True)"
         )
     except Exception as e:
         logger.error(
-            "Failed to create static directory",
-            static_dir=str(STATIC_DIR),
-            error=str(e),
+            f"Failed to create static directory {STATIC_DIR}: {e}",
             exc_info=True
         )
 
@@ -376,22 +372,18 @@ async def serve_dashboard() -> str:
     try:
         if DASHBOARD_HTML_PATH.exists() and DASHBOARD_HTML_PATH.stat().st_size > 0:
             logger.debug(
-                "Serving custom dashboard",
-                path=str(DASHBOARD_HTML_PATH)
+                f"Serving custom dashboard from {DASHBOARD_HTML_PATH}"
             )
             with open(DASHBOARD_HTML_PATH, 'r', encoding='utf-8') as f:
                 return f.read()
         else:
             logger.debug(
-                "Dashboard HTML not found or empty, serving default",
-                path=str(DASHBOARD_HTML_PATH)
+                f"Dashboard HTML not found or empty at {DASHBOARD_HTML_PATH}, serving default"
             )
             return create_default_dashboard()
     except Exception as e:
         logger.error(
-            "Failed to serve dashboard",
-            path=str(DASHBOARD_HTML_PATH),
-            error=str(e),
+            f"Failed to serve dashboard from {DASHBOARD_HTML_PATH}: {e}",
             exc_info=True
         )
         raise HTTPException(
@@ -424,7 +416,7 @@ async def get_active_policies() -> Dict[str, Dict]:
         Dict mapping policy name to policy details (condition, action, severity, target)
     """
     try:
-        from python.app.core.policy import get_policy_registry
+        from app.core.policy import get_policy_registry
         
         registry = get_policy_registry()
         policies_list = registry.get_enabled()
@@ -446,8 +438,7 @@ async def get_active_policies() -> Dict[str, Dict]:
         return {}
     except Exception as e:
         logger.error(
-            "Failed to fetch active policies",
-            error=str(e),
+            f"Failed to fetch active policies: {e}",
             exc_info=True
         )
         return {}
@@ -492,8 +483,7 @@ async def get_recent_violations(hours: int = 24) -> List[Dict]:
             return violations
     except Exception as e:
         logger.error(
-            "Failed to fetch recent violations",
-            error=str(e),
+            f"Failed to fetch recent violations: {e}",
             exc_info=True
         )
         return []
@@ -537,8 +527,7 @@ async def get_remediation_logs(hours: int = 24, limit: int = 50) -> List[Dict]:
             return logs
     except Exception as e:
         logger.error(
-            "Failed to fetch remediation logs",
-            error=str(e),
+            f"Failed to fetch remediation logs: {e}",
             exc_info=True
         )
         return []
@@ -564,16 +553,14 @@ async def get_policy_status(request: Request) -> Dict:
     request_start = datetime.utcnow()
     
     try:
-        from python.app.core.policy import get_policy_registry
-        from python.app.core.policy_runner import get_policy_runner_status
+        from app.core.policy import get_policy_registry
+        from app.core.policy_runner import get_policy_runner_status
         
         # Audit logging - log policy status request
+        client_ip = request.client.host if request.client else "unknown"
+        user_agent = request.headers.get("user-agent", "unknown")
         logger.info(
-            "Policy status request received",
-            client_ip=request.client.host if request.client else "unknown",
-            user_agent=request.headers.get("user-agent", "unknown"),
-            method=request.method,
-            path=request.url.path,
+            f"Policy status request from {client_ip} ({user_agent}): {request.method} {request.url.path}"
         )
         
         # Fetch active policies
@@ -611,21 +598,15 @@ async def get_policy_status(request: Request) -> Dict:
         
         # Audit log - successful response
         logger.info(
-            "Policy status returned successfully",
-            client_ip=request.client.host if request.client else "unknown",
-            total_policies=total_count,
-            enabled_policies=enabled_count,
-            recent_violations=len(recent_violations),
-            remediation_actions=len(remediation_logs),
-            response_time_seconds=response_time,
+            f"Policy status returned to {client_ip}: {total_count} total, {enabled_count} enabled, "
+            f"{len(recent_violations)} violations, {len(remediation_logs)} actions (took {response_time:.3f}s)"
         )
         
         return response_data
         
     except ImportError as e:
         logger.warning(
-            "Policy engine not available",
-            error=str(e),
+            f"Policy engine not available: {e}"
         )
         return {
             "ok": True,
@@ -646,10 +627,9 @@ async def get_policy_status(request: Request) -> Dict:
             }
         }
     except Exception as e:
+        client_ip = request.client.host if request.client else "unknown"
         logger.error(
-            "Failed to get policy status",
-            error=str(e),
-            client_ip=request.client.host if request.client else "unknown",
+            f"Failed to get policy status for {client_ip}: {e}",
             exc_info=True
         )
         return {
@@ -678,7 +658,7 @@ def mount_static_files(app) -> None:
         
     Example:
         from fastapi import FastAPI
-        from python.app.api.v1.ui import mount_static_files
+        from app.api.v1.ui import mount_static_files
         
         app = FastAPI()
         mount_static_files(app)
@@ -694,14 +674,10 @@ def mount_static_files(app) -> None:
         )
         
         logger.info(
-            "Static files mounted",
-            static_dir=str(STATIC_DIR),
-            mount_path="/static"
+            f"Static files mounted: {STATIC_DIR} -> /static"
         )
     except Exception as e:
         logger.error(
-            "Failed to mount static files",
-            static_dir=str(STATIC_DIR),
-            error=str(e),
+            f"Failed to mount static files from {STATIC_DIR}: {e}",
             exc_info=True
         )

@@ -13,9 +13,9 @@ from pydantic import BaseModel, Field, validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from python.app.core.db import get_db, Action
-from python.app.core.logger import get_logger
-from python.app.core.config import get_settings
+from app.core.db import get_db, Action
+from app.core.logger import get_logger
+from app.core.config import get_settings
 
 logger = get_logger(__name__)
 
@@ -169,6 +169,15 @@ class ListActionsResponse(BaseModel):
 
 
 # --- Routes ---
+
+@router.get(
+    "/health",
+    summary="Health check",
+    description="Check if the actions service is operational"
+)
+async def health_check() -> Dict[str, str]:
+    """Health check endpoint for actions service."""
+    return {"status": "healthy", "service": "actions"}
 
 @router.post(
     "",

@@ -56,7 +56,7 @@ func LoadConfig() (*Config, error) {
 		if apiPort == "" {
 			apiPort = "8000"
 		}
-		config.CollectorURL = fmt.Sprintf("http://%s:%s/ingest", collectorURL, apiPort)
+		config.CollectorURL = fmt.Sprintf("http://%s:%s/api/v1/ingest", collectorURL, apiPort)
 	}
 
 	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {

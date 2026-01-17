@@ -360,7 +360,7 @@ class PolicyRegistry:
             raise KeyError(f"Policy '{policy_name}' not found")
 
         del self._policies[policy_name]
-        logger.info("Policy unregistered", policy_name=policy_name)
+        logger.info("Policy unregistered", extra={"policy_name": policy_name})
 
     def get(self, policy_name: str) -> Optional[Policy]:
         """
@@ -428,7 +428,7 @@ class PolicyRegistry:
             raise KeyError(f"Policy '{policy_name}' not found")
 
         policy.enabled = True
-        logger.info("Policy enabled", policy_name=policy_name)
+        logger.info("Policy enabled", extra={"policy_name": policy_name})
 
     def disable_policy(self, policy_name: str) -> None:
         """
@@ -445,7 +445,7 @@ class PolicyRegistry:
             raise KeyError(f"Policy '{policy_name}' not found")
 
         policy.enabled = False
-        logger.info("Policy disabled", policy_name=policy_name)
+        logger.info("Policy disabled", extra={"policy_name": policy_name})
 
 
 # --- Global Registry Instance ---
@@ -912,11 +912,11 @@ def initialize_policies() -> None:
 
         logger.info(
             "Policy engine initialized",
-            policies_loaded=len(policies),
+            extra={"policies_loaded": len(policies)}
         )
     except Exception as e:
         logger.error(
             "Failed to initialize policies",
-            error=str(e),
+            extra={"error": str(e)},
             exc_info=True,
         )

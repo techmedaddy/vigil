@@ -16,15 +16,15 @@ from datetime import datetime
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from python.app.core.logger import get_logger
-from python.app.core.config import get_settings
+from app.core.logger import get_logger
+from app.core.config import get_settings
 
 logger = get_logger(__name__)
 settings = get_settings()
 
 # Import metrics module (optional - will use if metrics enabled)
 try:
-    from python.app.core import metrics
+    from app.core import metrics
     metrics_available = True
 except ImportError:
     metrics_available = False
@@ -63,10 +63,12 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         # Log request start
         logger.debug(
             "Request received",
-            request_id=request_id,
-            method=request.method,
-            path=request.url.path,
-            query_string=str(request.url.query) if request.url.query else None,
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "query_string": str(request.url.query) if request.url.query else None,
+            }
         )
 
         # Process request
@@ -77,8 +79,10 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
         logger.debug(
             "Response sent",
-            request_id=request_id,
-            status_code=response.status_code,
+            extra={
+                "request_id": request_id,
+                "status_code": response.status_code,
+            }
         )
 
         return response
@@ -139,13 +143,15 @@ class TimingMiddleware(BaseHTTPMiddleware):
 
         logger_func(
             "Request completed",
-            request_id=request_id,
-            method=request.method,
-            path=request.url.path,
-            status_code=response.status_code,
-            duration_ms=round(process_time, 2),
-            request_size_bytes=request_size,
-            response_size_bytes=response_size,
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": round(process_time, 2),
+                "request_size_bytes": request_size,
+                "response_size_bytes": response_size,
+            }
         )
 
         # Record Prometheus metrics if enabled
@@ -158,7 +164,7 @@ class TimingMiddleware(BaseHTTPMiddleware):
                     latency_seconds=process_time_seconds,
                 )
             except Exception as e:
-                logger.warning("Failed to record metrics", error=str(e))
+                logger.warning("Failed to record metrics", extra={"error": str(e)})
 
         # Store in request state for audit logging
         request.state.response_time_ms = process_time
@@ -227,7 +233,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.warning(
                 "Failed to record metrics in middleware",
-                error=str(e),
+                extra={"error": str(e)}
             )
 
         return response
@@ -267,13 +273,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 self.redis_client.ping()
                 logger.info(
                     "Rate limiting middleware initialized",
-                    requests_per_window=requests_per_window,
-                    window_seconds=window_seconds,
+                    extra={
+                        "requests_per_window": requests_per_window,
+                        "window_seconds": window_seconds,
+                    }
                 )
             except Exception as e:
                 logger.warning(
                     "Rate limiting middleware disabled - Redis unavailable",
-                    error=str(e),
+                    extra={"error": str(e)}
                 )
                 self.enabled = False
 
@@ -309,10 +317,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if current > self.requests_per_window:
                 logger.warning(
                     "Rate limit exceeded",
-                    request_id=request_id,
-                    client_ip=client_ip,
-                    requests=current,
-                    limit=self.requests_per_window,
+                    extra={
+                        "request_id": request_id,
+                        "client_ip": client_ip,
+                        "requests": current,
+                        "limit": self.requests_per_window,
+                    }
                 )
                 return Response(
                     content='{"error": "Rate limit exceeded"}',
@@ -327,9 +337,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error(
                 "Rate limiting check failed",
-                request_id=request_id,
-                error=str(e),
                 exc_info=True,
+                extra={
+                    "request_id": request_id,
+                    "error": str(e),
+                }
             )
 
         return await call_next(request)
@@ -376,16 +388,18 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
             # Log audit information (structured)
             logger.info(
                 "Audit log entry",
-                request_id=request_id,
-                method=request.method,
-                path=request.url.path,
-                query_params=query_params,
-                client_ip=client_ip,
-                status_code=response.status_code,
-                response_time_ms=response_time_ms,
-                request_size_bytes=request_size_bytes,
-                response_size_bytes=response_size_bytes,
-                user_agent=request.headers.get("user-agent"),
+                extra={
+                    "request_id": request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "query_params": query_params,
+                    "client_ip": client_ip,
+                    "status_code": response.status_code,
+                    "response_time_ms": response_time_ms,
+                    "request_size_bytes": request_size_bytes,
+                    "response_size_bytes": response_size_bytes,
+                    "user_agent": request.headers.get("user-agent"),
+                }
             )
 
             return response
@@ -393,9 +407,11 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error(
                 "Audit logging middleware error",
-                request_id=request_id,
-                error=str(e),
                 exc_info=True,
+                extra={
+                    "request_id": request_id,
+                    "error": str(e),
+                }
             )
             return Response(
                 content='{"error": "Internal server error"}',
@@ -417,7 +433,7 @@ def register_middleware(app) -> None:
 
     Example:
         from fastapi import FastAPI
-        from python.app.core.middleware import register_middleware
+        from app.core.middleware import register_middleware
 
         app = FastAPI()
         register_middleware(app)
@@ -447,7 +463,6 @@ def register_middleware(app) -> None:
     app.add_middleware(RequestIDMiddleware)
 
     logger.info(
-        "Middleware stack registered",
-        middlewares=["RequestID", "Timing", "RateLimit", "Metrics", "AuditLogging"],
+        "Middleware stack registered: RequestID, Timing, RateLimit, Metrics, AuditLogging"
     )
 

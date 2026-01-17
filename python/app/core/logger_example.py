@@ -5,7 +5,7 @@ This demonstrates how to integrate the logging system into your FastAPI applicat
 """
 
 from fastapi import FastAPI
-from python.app.core.logger import (
+from app.core.logger import (
     get_logger,
     configure_logging,
     RequestLoggingMiddleware,
@@ -76,7 +76,7 @@ async def report_drift(payload: dict):
 
 # Usage example in other modules:
 #
-# from python.app.core.logger import get_logger
+# from app.core.logger import get_logger
 #
 # logger = get_logger(__name__)
 #

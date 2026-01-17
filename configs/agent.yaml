@@ -1,2 +1,2 @@
 interval: 10
-collector_url: "http://127.0.0.1:8000/ingest"
+collector_url: "http://api:8000/api/v1/ingest"

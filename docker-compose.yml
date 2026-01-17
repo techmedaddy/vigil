@@ -33,12 +33,12 @@ services:
       - ./manifests:/app/manifests
     environment:
       PYTHONUNBUFFERED: 1
-      DATABASE_URL: postgresql://vigil:vigilpass@postgres:5432/vigil
+      DATABASE_URL: postgresql+asyncpg://vigil:vigilpass@postgres:5432/vigil
       REDIS_URL: redis://redis:6379/0
       CONFIG_PATH: /app/configs/collector.yaml
     command: >
       sh -c "
-        pip install --no-cache-dir fastapi uvicorn redis psycopg2-binary pyyaml python-dotenv requests &&
+        pip install --no-cache-dir fastapi uvicorn redis psycopg2-binary asyncpg pyyaml python-dotenv requests pydantic-settings sqlalchemy &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
     ports:
@@ -51,17 +51,19 @@ services:
   # Go GitOps Daemon
   # -------------------------
   gitopsd:
-    image: golang:1.25
+    image: golang:1.22
     container_name: vigil_gitopsd
     working_dir: /workspace/go
     volumes:
       - ./go:/workspace/go
       - ./configs:/workspace/configs
       - ./manifests:/workspace/manifests
+    environment:
+      GITOPSD_COLLECTOR_URL: http://api:8000/api/v1/actions
     command: >
       sh -c "
         go mod tidy &&
-        go run ./gitopsd/cmd/gitopsd/main.go
+        go run ./gitopsd/cmd/gitopsd
       "
     depends_on:
       - api
@@ -71,16 +73,19 @@ services:
   # Go Agent (Metrics Producer)
   # -------------------------
   agent:
-    image: golang:1.25
+    image: golang:1.22
     container_name: vigil_agent
     working_dir: /workspace/go
     volumes:
       - ./go:/workspace/go
       - ./configs:/workspace/configs
+    environment:
+      API_HOST: api
+      API_PORT: "8000"
     command: >
       sh -c "
         go mod tidy &&
-        go run ./agent/cmd/agent/main.go
+        go run ./agent/cmd/agent
       "
     depends_on:
       - api
@@ -90,16 +95,19 @@ services:
   # Go Remediator
   # -------------------------
   remediator:
-    image: golang:1.25
+    image: golang:1.22
     container_name: vigil_remediator
     working_dir: /workspace/go
     volumes:
       - ./go:/workspace/go
       - ./configs:/workspace/configs
+    environment:
+      API_HOST: api
+      API_PORT: "8000"
     command: >
       sh -c "
         go mod tidy &&
-        go run ./remediator/cmd/remediator/main.go
+        go run ./remediator/cmd/remediator
       "
     depends_on:
       - api

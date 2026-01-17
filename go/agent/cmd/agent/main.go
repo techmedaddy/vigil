@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -291,9 +292,9 @@ func collectDiskMetrics() (map[string]interface{}, error) {
 			mountPoint := string(fields[1])
 
 			// Skip pseudo filesystems
-			if bytes.HasPrefix(device, []byte("sys")) ||
-				bytes.HasPrefix(device, []byte("proc")) ||
-				bytes.HasPrefix(device, []byte("dev")) {
+			if strings.HasPrefix(device, "sys") ||
+				strings.HasPrefix(device, "proc") ||
+				strings.HasPrefix(device, "dev") {
 				continue
 			}
 

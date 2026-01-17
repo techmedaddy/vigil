@@ -27,15 +27,15 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.pool import StaticPool
 
 # Import all modules to test
-from python.app.core.logger import (
+from app.core.logger import (
     get_logger,
     JSONFormatter,
     RequestLoggingMiddleware,
     RequestContextVar,
     configure_logging,
 )
-from python.app.core.config import get_settings, reload_settings, Settings
-from python.app.core.db import (
+from app.core.config import get_settings, reload_settings, Settings
+from app.core.db import (
     init_db,
     get_db,
     get_db_manager,
@@ -45,14 +45,14 @@ from python.app.core.db import (
     Action,
     Alert,
 )
-from python.app.core.middleware import (
+from app.core.middleware import (
     RequestIDMiddleware,
     TimingMiddleware,
     RateLimitMiddleware,
     AuditLoggingMiddleware,
     register_middleware,
 )
-from python.app.core.tasks import (
+from app.core.tasks import (
     start_agent_loop,
     start_gitopsd_loop,
     start_all_background_tasks,
@@ -454,7 +454,7 @@ class TestDatabase:
     @pytest.mark.asyncio
     async def test_database_manager_initialization(self, test_settings):
         """Verify DatabaseManager initializes correctly."""
-        with patch("python.app.core.db.get_settings", return_value=test_settings):
+        with patch("app.core.db.get_settings", return_value=test_settings):
             db_manager = DatabaseManager()
             assert db_manager.settings is not None
             assert db_manager._is_sqlite is True
@@ -462,7 +462,7 @@ class TestDatabase:
     @pytest.mark.asyncio
     async def test_database_manager_detect_sqlite(self):
         """Verify DatabaseManager detects SQLite URLs."""
-        with patch("python.app.core.db.get_settings") as mock_settings:
+        with patch("app.core.db.get_settings") as mock_settings:
             mock_settings.return_value.DATABASE_URL = "sqlite:///test.db"
             db_manager = DatabaseManager()
             assert db_manager._is_sqlite is True
@@ -470,7 +470,7 @@ class TestDatabase:
     @pytest.mark.asyncio
     async def test_database_manager_detect_postgresql(self):
         """Verify DatabaseManager detects PostgreSQL URLs."""
-        with patch("python.app.core.db.get_settings") as mock_settings:
+        with patch("app.core.db.get_settings") as mock_settings:
             mock_settings.return_value.DATABASE_URL = (
                 "postgresql://user:pass@localhost/db"
             )
@@ -481,7 +481,7 @@ class TestDatabase:
     async def test_get_db_manager_singleton(self):
         """Verify get_db_manager() returns singleton."""
         # Reset global state for testing
-        import python.app.core.db as db_module
+        import app.core.db as db_module
         db_module._db_manager = None
 
         manager1 = get_db_manager()
@@ -560,7 +560,7 @@ class TestTimingMiddleware:
         app.add_middleware(TimingMiddleware)
         app.add_middleware(RequestIDMiddleware)
 
-        with patch("python.app.core.middleware.logger") as mock_logger:
+        with patch("app.core.middleware.logger") as mock_logger:
             client = TestClient(app)
             response = client.get("/test")
 
@@ -590,7 +590,7 @@ class TestRateLimitMiddleware:
 
     def test_rate_limit_middleware_initialization(self, fastapi_app, mock_redis):
         """Verify rate limit middleware initializes with Redis."""
-        with patch("python.app.core.middleware.settings") as mock_settings:
+        with patch("app.core.middleware.settings") as mock_settings:
             mock_settings.REDIS_URL = "redis://localhost:6379"
             with patch("redis.from_url", return_value=mock_redis):
                 app = fastapi_app
@@ -628,7 +628,7 @@ class TestRateLimitMiddleware:
         client = TestClient(app)
 
         # Mock redis for the test
-        with patch("python.app.core.middleware.settings") as mock_settings:
+        with patch("app.core.middleware.settings") as mock_settings:
             with patch("redis.from_url", return_value=mock_redis):
                 response = client.get("/test")
                 # Should get a response (either 200 or 429 depending on Redis state)
@@ -645,7 +645,7 @@ class TestAuditLoggingMiddleware:
         app.add_middleware(TimingMiddleware)
         app.add_middleware(RequestIDMiddleware)
 
-        with patch("python.app.core.middleware.logger") as mock_logger:
+        with patch("app.core.middleware.logger") as mock_logger:
             client = TestClient(app)
             response = client.get("/test")
 
@@ -684,7 +684,7 @@ class TestAuditLoggingMiddleware:
         app.add_middleware(TimingMiddleware)
         app.add_middleware(RequestIDMiddleware)
 
-        with patch("python.app.core.middleware.logger"):
+        with patch("app.core.middleware.logger"):
             client = TestClient(app)
             response = client.get("/error")
 
@@ -699,7 +699,7 @@ class TestMiddlewareRegistration:
         """Verify register_middleware() adds all middleware to app."""
         app = FastAPI()
 
-        with patch("python.app.core.middleware.logger"):
+        with patch("app.core.middleware.logger"):
             register_middleware(app)
 
         # Verify middleware stack was registered (app.middleware_stack should exist)
@@ -709,8 +709,8 @@ class TestMiddlewareRegistration:
         """Verify register_middleware() respects settings."""
         app = FastAPI()
 
-        with patch("python.app.core.middleware.logger"):
-            with patch("python.app.core.middleware.settings") as mock_settings:
+        with patch("app.core.middleware.logger"):
+            with patch("app.core.middleware.settings") as mock_settings:
                 mock_settings.RATE_LIMIT_ENABLED = False
                 register_middleware(app)
 
@@ -811,9 +811,9 @@ class TestAgentLoop:
     @pytest.mark.asyncio
     async def test_start_agent_loop_returns_task(self):
         """Verify start_agent_loop returns asyncio.Task."""
-        with patch("python.app.core.tasks.get_settings") as mock_settings:
+        with patch("app.core.tasks.get_settings") as mock_settings:
             mock_settings.return_value.AGENT_INTERVAL = 0.1
-            with patch("python.app.core.tasks.get_db_manager"):
+            with patch("app.core.tasks.get_db_manager"):
                 task = await start_agent_loop()
                 assert isinstance(task, asyncio.Task)
 
@@ -827,10 +827,10 @@ class TestAgentLoop:
     @pytest.mark.asyncio
     async def test_agent_loop_handles_cancellation(self):
         """Verify agent loop handles CancelledError gracefully."""
-        with patch("python.app.core.tasks.get_settings") as mock_settings:
+        with patch("app.core.tasks.get_settings") as mock_settings:
             mock_settings.return_value.AGENT_INTERVAL = 0.01
-            with patch("python.app.core.tasks.logger"):
-                with patch("python.app.core.tasks.get_db_manager"):
+            with patch("app.core.tasks.logger"):
+                with patch("app.core.tasks.get_db_manager"):
                     task = await start_agent_loop()
 
                     # Give it time to start
@@ -853,9 +853,9 @@ class TestGitOpsDLoop:
     @pytest.mark.asyncio
     async def test_start_gitopsd_loop_returns_task(self):
         """Verify start_gitopsd_loop returns asyncio.Task."""
-        with patch("python.app.core.tasks.get_settings") as mock_settings:
+        with patch("app.core.tasks.get_settings") as mock_settings:
             mock_settings.return_value.GITOPSD_INTERVAL = 0.1
-            with patch("python.app.core.tasks.get_db_manager"):
+            with patch("app.core.tasks.get_db_manager"):
                 task = await start_gitopsd_loop()
                 assert isinstance(task, asyncio.Task)
 
@@ -869,10 +869,10 @@ class TestGitOpsDLoop:
     @pytest.mark.asyncio
     async def test_gitopsd_loop_handles_cancellation(self):
         """Verify GitOpsD loop handles CancelledError gracefully."""
-        with patch("python.app.core.tasks.get_settings") as mock_settings:
+        with patch("app.core.tasks.get_settings") as mock_settings:
             mock_settings.return_value.GITOPSD_INTERVAL = 0.01
-            with patch("python.app.core.tasks.logger"):
-                with patch("python.app.core.tasks.get_db_manager"):
+            with patch("app.core.tasks.logger"):
+                with patch("app.core.tasks.get_db_manager"):
                     task = await start_gitopsd_loop()
 
                     # Give it time to start
@@ -895,13 +895,13 @@ class TestBackgroundTaskLifecycle:
     @pytest.mark.asyncio
     async def test_start_all_background_tasks(self):
         """Verify start_all_background_tasks starts all tasks."""
-        with patch("python.app.core.tasks.get_settings") as mock_settings:
+        with patch("app.core.tasks.get_settings") as mock_settings:
             mock_settings.return_value.AGENT_INTERVAL = 10.0
             mock_settings.return_value.GITOPSD_INTERVAL = 20.0
-            with patch("python.app.core.tasks.logger"):
-                with patch("python.app.core.tasks.get_db_manager"):
+            with patch("app.core.tasks.logger"):
+                with patch("app.core.tasks.get_db_manager"):
                     # Clear previous tasks
-                    import python.app.core.tasks as tasks_module
+                    import app.core.tasks as tasks_module
                     tasks_module._background_tasks.clear()
 
                     await start_all_background_tasks()
@@ -915,12 +915,12 @@ class TestBackgroundTaskLifecycle:
     @pytest.mark.asyncio
     async def test_cancel_all_background_tasks(self):
         """Verify cancel_all_background_tasks cancels all running tasks."""
-        with patch("python.app.core.tasks.get_settings") as mock_settings:
+        with patch("app.core.tasks.get_settings") as mock_settings:
             mock_settings.return_value.AGENT_INTERVAL = 0.01
             mock_settings.return_value.GITOPSD_INTERVAL = 0.01
-            with patch("python.app.core.tasks.logger"):
-                with patch("python.app.core.tasks.get_db_manager"):
-                    import python.app.core.tasks as tasks_module
+            with patch("app.core.tasks.logger"):
+                with patch("app.core.tasks.get_db_manager"):
+                    import app.core.tasks as tasks_module
                     tasks_module._background_tasks.clear()
 
                     await start_all_background_tasks()
@@ -935,12 +935,12 @@ class TestBackgroundTaskLifecycle:
     @pytest.mark.asyncio
     async def test_get_background_task_status(self):
         """Verify get_background_task_status returns task info."""
-        with patch("python.app.core.tasks.get_settings") as mock_settings:
+        with patch("app.core.tasks.get_settings") as mock_settings:
             mock_settings.return_value.AGENT_INTERVAL = 10.0
             mock_settings.return_value.GITOPSD_INTERVAL = 20.0
-            with patch("python.app.core.tasks.logger"):
-                with patch("python.app.core.tasks.get_db_manager"):
-                    import python.app.core.tasks as tasks_module
+            with patch("app.core.tasks.logger"):
+                with patch("app.core.tasks.get_db_manager"):
+                    import app.core.tasks as tasks_module
                     tasks_module._background_tasks.clear()
 
                     await start_all_background_tasks()
@@ -997,7 +997,7 @@ class TestCoreIntegration:
         """Verify middleware stack is correctly ordered."""
         app = FastAPI()
 
-        with patch("python.app.core.middleware.logger"):
+        with patch("app.core.middleware.logger"):
             register_middleware(app)
 
             # Verify app has middleware stack

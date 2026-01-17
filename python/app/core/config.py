@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
-from pydantic import BaseSettings, Field, validator
+from pydantic import Field, validator
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -201,11 +202,12 @@ class Settings(BaseSettings):
             print(f"Warning: Failed to load config from {config_path}: {e}")
             return {}
 
-    class Config:
-        """Pydantic configuration."""
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": True,
+        "extra": "allow"
+    }
 
     def __init__(self, **data):
         """

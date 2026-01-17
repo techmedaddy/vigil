@@ -14,39 +14,40 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from contextlib import asynccontextmanager
 
-from python.app.core.config import get_settings
-from python.app.core.logger import get_logger, configure_logging
-from python.app.core.db import init_db, close_db, get_db_manager
-from python.app.core.middleware import register_middleware
-from python.app.core.tasks import start_all_background_tasks, cancel_all_background_tasks
-from python.app.api.v1.ingest import router as ingest_router
-from python.app.api.v1.actions import router as actions_router
-from python.app.api.v1.ui import router as ui_router, mount_static_files
+from app.core.config import get_settings
+from app.core.logger import get_logger, configure_logging
+from app.core.db import init_db, close_db, get_db_manager
+from app.core.middleware import register_middleware
+from app.core.tasks import start_all_background_tasks, cancel_all_background_tasks
+from app.api.v1.ingest import router as ingest_router
+from app.api.v1.actions import router as actions_router
+from app.api.v1.ui import router as ui_router, mount_static_files
+
 
 # Import policies router if available
 try:
-    from python.app.api.v1.policies import router as policies_router
+    from app.api.v1.policies import router as policies_router
     policies_router_available = True
 except ImportError:
     policies_router_available = False
 
 # Import metrics if available
 try:
-    from python.app.core import metrics
+    from app.core import metrics
     metrics_available = True
 except ImportError:
     metrics_available = False
 
 # Import policy engine
 try:
-    from python.app.core.policy import initialize_policies
+    from app.core.policy import initialize_policies
     policy_engine_available = True
 except ImportError:
     policy_engine_available = False
 
 # Import policy runner
 try:
-    from python.app.core.policy_runner import start_policy_runner, stop_policy_runner
+    from app.core.policy_runner import start_policy_runner, stop_policy_runner
     policy_runner_available = True
 except ImportError:
     policy_runner_available = False
@@ -77,12 +78,10 @@ async def lifespan(app: FastAPI):
     - Clean up resources
     """
     # Startup
+    db_type = settings.DATABASE_URL.split("://")[0]
     logger.info(
-        "Application starting",
-        environment=settings.ENVIRONMENT,
-        service=settings.SERVICE_NAME,
-        version=settings.API_VERSION,
-        database_url=settings.DATABASE_URL.split("://")[0]  # Log DB type only
+        f"Application starting: {settings.SERVICE_NAME} v{settings.API_VERSION} "
+        f"(env={settings.ENVIRONMENT}, db={db_type})"
     )
     
     try:
@@ -91,8 +90,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(
             "Database initialization failed",
-            error=str(e),
-            exc_info=True
+            exc_info=True,
+            extra={"error": str(e)}
         )
         raise
     
@@ -104,8 +103,8 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(
                 "Policy engine initialization failed",
-                error=str(e),
-                exc_info=True
+                exc_info=True,
+                extra={"error": str(e)}
             )
     
     # Start policy runner
@@ -116,8 +115,8 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(
                 "Policy runner startup failed",
-                error=str(e),
-                exc_info=True
+                exc_info=True,
+                extra={"error": str(e)}
             )
     
     # Start background tasks
@@ -127,8 +126,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(
             "Failed to start background tasks",
-            error=str(e),
-            exc_info=True
+            exc_info=True,
+            extra={"error": str(e)}
         )
     
     yield
@@ -144,8 +143,8 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(
                 "Error stopping policy runner",
-                error=str(e),
-                exc_info=True
+                exc_info=True,
+                extra={"error": str(e)}
             )
     
     try:
@@ -154,8 +153,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(
             "Error cancelling background tasks",
-            error=str(e),
-            exc_info=True
+            exc_info=True,
+            extra={"error": str(e)}
         )
     
     try:
@@ -164,8 +163,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(
             "Error during shutdown",
-            error=str(e),
-            exc_info=True
+            exc_info=True,
+            extra={"error": str(e)}
         )
 
 
@@ -193,6 +192,12 @@ register_middleware(app)
 # --- Mount Static Files ---
 mount_static_files(app)
 
+# --- Health Check Endpoint ---
+@app.get("/health", include_in_schema=False)
+async def root_health_check():
+    """Root health check endpoint for service discovery."""
+    return {"status": "healthy", "service": "vigil"}
+
 # --- Metrics Endpoint ---
 if metrics_available and settings.METRICS_ENABLED:
     @app.get(settings.METRICS_ENDPOINT, include_in_schema=False)
@@ -209,8 +214,7 @@ if metrics_available and settings.METRICS_ENABLED:
         )
 
     logger.info(
-        "Prometheus metrics endpoint registered",
-        endpoint=settings.METRICS_ENDPOINT,
+        f"Prometheus metrics endpoint registered at {settings.METRICS_ENDPOINT}"
     )
 
 # --- Include Routers ---
@@ -221,8 +225,7 @@ app.include_router(ui_router, prefix="/api/v1")
 if policies_router_available:
     app.include_router(policies_router, prefix="/api/v1")
 
+routers_list = ["ingest", "actions", "ui", "policies"] if policies_router_available else ["ingest", "actions", "ui"]
 logger.info(
-    "Application initialized",
-    routers=["ingest", "actions", "ui", "policies"] if policies_router_available else ["ingest", "actions", "ui"],
-    background_tasks=["agent", "gitopsd"]
+    f"Application initialized with routers: {', '.join(routers_list)} | background tasks: agent, gitopsd"
 )

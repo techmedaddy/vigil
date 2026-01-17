@@ -4,7 +4,7 @@ import (
     "net"
     "time"
 )
-func main() {
+func testNetConnection() {
     fmt.Println("dialing 127.0.0.1:8000 ...")
     conn, err := net.DialTimeout("tcp", "127.0.0.1:8000", 3*time.Second)
     if err != nil {

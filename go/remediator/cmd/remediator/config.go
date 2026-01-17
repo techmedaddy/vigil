@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -14,6 +13,7 @@ type RemediationConfig struct {
 	Port          int    `yaml:"port"`
 	APIHost       string `yaml:"api_host"`
 	APIPort       int    `yaml:"api_port"`
+	CollectorURL  string
 	LogLevel      string `yaml:"log_level"`
 	MaxConcurrent int    `yaml:"max_concurrent"`
 	TaskQueueSize int    `yaml:"task_queue_size"`
@@ -102,7 +102,7 @@ func LoadConfig() (*RemediationConfig, error) {
 
 // GetAPIURL returns the full API URL for the remediator
 func (c *RemediationConfig) GetAPIURL() string {
-	return fmt.Sprintf("http://%s:%d", c.APIHost, c.APIPort)
+	return fmt.Sprintf("http://%s:%d/api/v1", c.APIHost, c.APIPort)
 }
 
 // GetListenerAddress returns the address to listen on

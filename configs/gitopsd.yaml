@@ -1,3 +1,3 @@
 interval: 15
 manifests_path: "../manifests/"
-collector_url: "http://127.0.0.1:8000/actions"
+collector_url: "http://api:8000/api/v1/actions"

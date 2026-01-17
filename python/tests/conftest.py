@@ -11,7 +11,7 @@ import pytest
 import asyncio
 import logging
 
-from python.app.core.logger import get_logger
+from app.core.logger import get_logger
 
 # Configure pytest for async tests
 pytest_plugins = ('pytest_asyncio',)

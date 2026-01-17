@@ -5,7 +5,7 @@ Demonstrates how to use the Settings object in various contexts.
 """
 
 from fastapi import FastAPI, Depends
-from python.app.core.config import get_settings, Settings
+from app.core.config import get_settings, Settings
 
 
 # --- Usage Pattern 1: Basic FastAPI Integration ---
@@ -40,7 +40,7 @@ async def get_config(settings: Settings = Depends(get_settings)):
 
 # --- Usage Pattern 2: Direct Access ---
 
-from python.app.core.config import settings
+from app.core.config import settings
 
 # Access settings directly in module-level code
 print(f"Collector running on port {settings.COLLECTOR_PORT}")
@@ -94,7 +94,7 @@ Priority order (highest to lowest):
 def test_with_custom_config():
     """Example of reloading settings for testing."""
     import os
-    from python.app.core.config import reload_settings
+    from app.core.config import reload_settings
 
     # Set environment variable
     os.environ["COLLECTOR_PORT"] = "9999"

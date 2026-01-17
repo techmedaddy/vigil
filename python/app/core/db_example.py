@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
 
-from python.app.core.db import (
+from app.core.db import (
     get_db,
     init_db,
     close_db,
@@ -17,7 +17,7 @@ from python.app.core.db import (
     Action,
     Alert,
 )
-from python.app.core.logger import get_logger
+from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 

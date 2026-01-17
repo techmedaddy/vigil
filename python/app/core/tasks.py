@@ -12,9 +12,9 @@ from typing import Optional, List
 from datetime import datetime
 import random
 
-from python.app.core.config import get_settings
-from python.app.core.logger import get_logger
-from python.app.core.db import get_db
+from app.core.config import get_settings
+from app.core.logger import get_logger
+from app.core.db import get_db
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -53,12 +53,12 @@ async def start_agent_loop() -> asyncio.Task:
 
                 # Get database session
                 try:
-                    from python.app.core.db import get_db_manager
+                    from app.core.db import get_db_manager
                     db_manager = get_db_manager()
 
                     async with db_manager.get_session_context() as session:
                         # Import Metric model
-                        from python.app.core.db import Metric
+                        from app.core.db import Metric
                         from sqlalchemy import select, desc
                         from datetime import timedelta
 
@@ -187,7 +187,7 @@ async def start_gitopsd_loop() -> asyncio.Task:
                     # Log individual drift events
                     for event in drift_events:
                         try:
-                            from python.app.core.db import get_db_manager, Action
+                            from app.core.db import get_db_manager, Action
                             from datetime import datetime
 
                             db_manager = get_db_manager()
@@ -335,15 +335,15 @@ async def start_all_background_tasks() -> None:
         await start_agent_loop()
         logger.info("Agent loop started")
     except Exception as e:
-        logger.error("Failed to start agent loop", error=str(e), exc_info=True)
+        logger.error("Failed to start agent loop", exc_info=True, extra={"error": str(e)})
 
     try:
         await start_gitopsd_loop()
         logger.info("GitOpsD loop started")
     except Exception as e:
-        logger.error("Failed to start GitOpsD loop", error=str(e), exc_info=True)
+        logger.error("Failed to start GitOpsD loop", exc_info=True, extra={"error": str(e)})
 
-    logger.info("All background tasks started", active_tasks=len(_background_tasks))
+    logger.info("All background tasks started", extra={"active_tasks": len(_background_tasks)})
 
 
 async def cancel_all_background_tasks() -> None:
@@ -356,7 +356,7 @@ async def cancel_all_background_tasks() -> None:
         logger.info("No background tasks to cancel")
         return
 
-    logger.info("Cancelling background tasks", count=len(_background_tasks))
+    logger.info("Cancelling background tasks", extra={"count": len(_background_tasks)})
 
     # Cancel all tasks
     for task in _background_tasks:

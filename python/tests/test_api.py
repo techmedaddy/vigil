@@ -19,10 +19,10 @@ import httpx
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from python.app.main import app
-from python.app.core.logger import get_logger
-from python.app.core.db import Base, get_db_manager, Metric, Action
-from python.app.core.config import get_settings
+from app.main import app
+from app.core.logger import get_logger
+from app.core.db import Base, get_db_manager, Metric, Action
+from app.core.config import get_settings
 
 # Get test logger
 logger = get_logger(__name__)
@@ -90,7 +90,7 @@ async def app_with_test_db(test_db):
     logger.info("Initializing app with test database")
     
     # Override get_db dependency
-    from python.app.core.db import get_db
+    from app.core.db import get_db
     
     async def override_get_db() -> AsyncGenerator:
         """Override database dependency for tests."""

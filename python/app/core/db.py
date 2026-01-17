@@ -20,8 +20,8 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool, QueuePool
 from datetime import datetime
 
-from python.app.core.config import get_settings
-from python.app.core.logger import get_logger
+from app.core.config import get_settings
+from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -125,7 +125,6 @@ class DatabaseManager:
                 self.engine = create_async_engine(
                     db_url,
                     echo=self.settings.DEBUG,
-                    poolclass=NullPool,
                     connect_args={"timeout": 30},
                 )
             else:
@@ -133,7 +132,6 @@ class DatabaseManager:
                 self.engine = create_async_engine(
                     db_url,
                     echo=self.settings.DEBUG,
-                    poolclass=QueuePool,
                     pool_size=10,
                     max_overflow=20,
                     pool_pre_ping=True,
@@ -284,6 +282,17 @@ async def close_db() -> None:
     """
     db_manager = get_db_manager()
     await db_manager.dispose()
+
+
+async def get_session() -> AsyncSession:
+    """
+    Get a database session. Convenience function for getting a session from the global db manager.
+    
+    Returns:
+        AsyncSession instance
+    """
+    db_manager = get_db_manager()
+    return await db_manager.get_session()
 
 
 # Module-level convenience access

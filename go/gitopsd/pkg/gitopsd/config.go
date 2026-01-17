@@ -17,7 +17,7 @@ type Config struct {
 const (
 	defaultInterval      = 30
 	defaultManifestsPath = "manifests/"
-	defaultCollectorURL  = "http://127.0.0.1:8000/actions"
+	defaultCollectorURL  = "http://127.0.0.1:8000/api/v1/actions"
 )
 
 // LoadConfig reads the configuration file from the specified path.

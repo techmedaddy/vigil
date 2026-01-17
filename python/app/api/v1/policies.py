@@ -128,7 +128,7 @@ async def list_policies() -> PolicyListResponse:
             enabled_count=enabled_count,
         )
     except Exception as e:
-        logger.error("Failed to list policies", error=str(e), exc_info=True)
+        logger.error("Failed to list policies", exc_info=True, extra={"error": str(e)})
         raise HTTPException(status_code=500, detail="Failed to list policies")
 
 
@@ -299,7 +299,7 @@ async def reload_policies() -> MessageResponse:
             message=f"Policies reloaded successfully ({policy_count} policies)",
         )
     except Exception as e:
-        logger.error("Failed to reload policies", error=str(e), exc_info=True)
+        logger.error("Failed to reload policies", exc_info=True, extra={"error": str(e)})
         raise HTTPException(status_code=500, detail="Failed to reload policies")
 
 

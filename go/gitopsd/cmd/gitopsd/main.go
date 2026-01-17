@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,8 +12,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"vigil/go/gitopsd/pkg/gitopsd"
 )
 
 // DriftEvent represents a detected drift between manifest and cluster state
@@ -53,9 +50,16 @@ const (
 	maxRetries    = 5
 )
 
+// Config represents the configuration for gitopsd
+type Config struct {
+	Interval      int    `yaml:"interval"`
+	ManifestsPath string `yaml:"manifests_path"`
+	CollectorURL  string `yaml:"collector_url"`
+}
+
 var (
 	httpClient *http.Client
-	config     gitopsd.Config
+	config     Config
 	logger     Logger
 )
 
@@ -70,7 +74,12 @@ func main() {
 	printBanner()
 
 	// Load configuration
-	config = gitopsd.LoadConfig("./configs/gitopsd.yaml")
+	var err error
+	config, err = loadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
+		os.Exit(1)
+	}
 	logger = NewLogger("INFO")
 
 	logger.Info("Configuration loaded successfully", map[string]interface{}{
@@ -343,7 +352,8 @@ func detectDrift(manifests []ManifestState, clusterState []ResourceState) []Drif
 				foundResources[resource.Kind+"/"+resource.Name] = true
 
 				// Check for configuration mismatches
-				if drifted, details := checkConfigurationDrift(&manifest, &resource) {
+			drifted, details := checkConfigurationDrift(&manifest, &resource)
+			if drifted {
 					event := DriftEvent{
 						Timestamp:     time.Now().Unix(),
 						EventType:     "drift_detected",
@@ -479,6 +489,28 @@ func reportDriftEvent(url string, event *DriftEvent) error {
 	}
 
 	return nil
+}
+
+// loadConfig loads the configuration from environment variables with defaults
+func loadConfig() (Config, error) {
+	config := Config{
+		Interval:      30,
+		ManifestsPath: "./manifests",
+		CollectorURL:  "http://localhost:8000/ingest",
+	}
+
+	// Override with environment variables if set
+	if interval := os.Getenv("GITOPSD_INTERVAL"); interval != "" {
+		fmt.Sscanf(interval, "%d", &config.Interval)
+	}
+	if path := os.Getenv("GITOPSD_MANIFESTS_PATH"); path != "" {
+		config.ManifestsPath = path
+	}
+	if url := os.Getenv("GITOPSD_COLLECTOR_URL"); url != "" {
+		config.CollectorURL = url
+	}
+
+	return config, nil
 }
 
 // gracefulShutdown performs cleanup on shutdown
