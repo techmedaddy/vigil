@@ -108,6 +108,27 @@ class Settings(BaseSettings):
         description="Enable debug mode"
     )
 
+    # Retry configuration
+    RETRY_MAX_ATTEMPTS: int = Field(
+        default=3,
+        description="Maximum number of retry attempts for transient errors"
+    )
+
+    RETRY_BACKOFF: str = Field(
+        default="exponential",
+        description="Backoff strategy for retries (exponential, linear, constant)"
+    )
+
+    RETRY_BASE_DELAY: float = Field(
+        default=1.0,
+        description="Base delay in seconds for retry backoff"
+    )
+
+    RETRY_MAX_DELAY: float = Field(
+        default=60.0,
+        description="Maximum delay in seconds between retry attempts"
+    )
+
     # Rate limiting configuration
     RATE_LIMIT_ENABLED: bool = Field(
         default=True,
@@ -122,6 +143,27 @@ class Settings(BaseSettings):
     RATE_LIMIT_PERIOD: int = Field(
         default=60,
         description="Time window in seconds for rate limiting"
+    )
+
+    # Rate limits for specific endpoints
+    RATE_LIMIT_INGEST_REQUESTS: int = Field(
+        default=200,
+        description="Maximum requests per minute for /ingest endpoint"
+    )
+
+    RATE_LIMIT_INGEST_WINDOW: int = Field(
+        default=60,
+        description="Time window in seconds for /ingest rate limiting"
+    )
+
+    RATE_LIMIT_ACTIONS_REQUESTS: int = Field(
+        default=50,
+        description="Maximum requests per minute for /actions endpoint"
+    )
+
+    RATE_LIMIT_ACTIONS_WINDOW: int = Field(
+        default=60,
+        description="Time window in seconds for /actions rate limiting"
     )
 
     # Audit logging configuration

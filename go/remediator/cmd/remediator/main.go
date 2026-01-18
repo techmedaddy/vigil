@@ -42,6 +42,34 @@ type RemediationResult struct {
 	Details       map[string]interface{} `json:"details"`
 	RemediatorID  string                 `json:"remediator_id"`
 	RemediatorVersion string              `json:"remediator_version"`
+	RetryAttempts int                    `json:"retry_attempts,omitempty"`
+}
+
+// RetryConfig holds retry configuration
+type RetryConfig struct {
+	MaxAttempts      int
+	BaseDelay        time.Duration
+	MaxDelay         time.Duration
+	ExponentialBase  float64
+}
+
+// DefaultRetryConfig returns default retry configuration
+func DefaultRetryConfig() RetryConfig {
+	return RetryConfig{
+		MaxAttempts:     3,
+		BaseDelay:       1 * time.Second,
+		MaxDelay:        60 * time.Second,
+		ExponentialBase: 2.0,
+	}
+}
+
+// CalculateBackoff calculates exponential backoff delay
+func (rc RetryConfig) CalculateBackoff(attempt int) time.Duration {
+	delay := float64(rc.BaseDelay) * float64(1<<uint(attempt))
+	if delay > float64(rc.MaxDelay) {
+		return rc.MaxDelay
+	}
+	return time.Duration(delay)
 }
 
 
@@ -379,7 +407,7 @@ func remediationWorker(workerID int) {
 	}
 }
 
-// executeRemediationAction executes a specific remediation action
+// executeRemediationAction executes a specific remediation action with retry logic
 func executeRemediationAction(task *RemediationTask) RemediationResult {
 	result := RemediationResult{
 		TaskID:    task.ID,
@@ -390,28 +418,88 @@ func executeRemediationAction(task *RemediationTask) RemediationResult {
 		Details:   make(map[string]interface{}),
 	}
 
-	switch task.Action {
-	case "restart_pod":
-		result = executeRestartPod(task, result)
-
-	case "scale_deployment":
-		result = executeScaleDeployment(task, result)
-
-	case "apply_manifest":
-		result = executeApplyManifest(task, result)
-
-	case "cordon_node":
-		result = executeCordonNode(task, result)
-
-	case "execute_command":
-		result = executeCommand(task, result)
-
-	default:
-		result.Status = "failed"
-		result.ErrorMessage = fmt.Sprintf("Unknown action: %s", task.Action)
-		result.Details["reason"] = "unsupported_action"
+	// Configure retry based on task or defaults
+	retryConfig := DefaultRetryConfig()
+	if task.MaxRetries > 0 {
+		retryConfig.MaxAttempts = task.MaxRetries
 	}
 
+	// Execute action with retry logic
+	var lastError error
+	for attempt := 0; attempt < retryConfig.MaxAttempts; attempt++ {
+		result.RetryAttempts = attempt + 1
+		
+		// Execute the action
+		switch task.Action {
+		case "restart_pod":
+			result = executeRestartPod(task, result)
+		case "scale_deployment":
+			result = executeScaleDeployment(task, result)
+		case "apply_manifest":
+			result = executeApplyManifest(task, result)
+		case "cordon_node":
+			result = executeCordonNode(task, result)
+		case "execute_command":
+			result = executeCommand(task, result)
+		default:
+			result.Status = "failed"
+			result.ErrorMessage = fmt.Sprintf("Unknown action: %s", task.Action)
+			result.Details["reason"] = "unsupported_action"
+			return result // Don't retry unsupported actions
+		}
+
+		// Check if action succeeded
+		if result.Status == "success" {
+			if attempt > 0 {
+				logger.Info("Remediation succeeded after retry", map[string]interface{}{
+					"task_id":  task.ID,
+					"action":   task.Action,
+					"attempts": attempt + 1,
+				})
+			}
+			return result
+		}
+
+		// Action failed, check if we should retry
+		lastError = fmt.Errorf("%s", result.ErrorMessage)
+		
+		// Don't retry on certain error types
+		if result.Details["reason"] == "missing_parameter" || 
+		   result.Details["reason"] == "invalid_parameter" {
+			logger.Warn("Non-retryable error encountered", map[string]interface{}{
+				"task_id": task.ID,
+				"action":  task.Action,
+				"reason":  result.Details["reason"],
+			})
+			return result
+		}
+
+		// Calculate backoff for next attempt
+		if attempt < retryConfig.MaxAttempts-1 {
+			backoffDelay := retryConfig.CalculateBackoff(attempt)
+			logger.Warn("Remediation failed, retrying with backoff", map[string]interface{}{
+				"task_id":         task.ID,
+				"action":          task.Action,
+				"attempt":         attempt + 1,
+				"max_attempts":    retryConfig.MaxAttempts,
+				"backoff_seconds": backoffDelay.Seconds(),
+				"error":           result.ErrorMessage,
+			})
+			time.Sleep(backoffDelay)
+		}
+	}
+
+	// All retries exhausted
+	logger.Error("Remediation failed after all retries", map[string]interface{}{
+		"task_id":      task.ID,
+		"action":       task.Action,
+		"attempts":     retryConfig.MaxAttempts,
+		"final_error":  lastError.Error(),
+	})
+	
+	result.ErrorMessage = fmt.Sprintf("Failed after %d attempts: %s", retryConfig.MaxAttempts, lastError.Error())
+	result.Details["retry_exhausted"] = true
+	
 	return result
 }
 
@@ -535,28 +623,47 @@ func executeCommand(task *RemediationTask, result RemediationResult) Remediation
 	return result
 }
 
-// reportRemediationResultWithRetry reports result to API with retry
+// reportRemediationResultWithRetry reports result to API with exponential backoff retry
 func reportRemediationResultWithRetry(result *RemediationResult) error {
 	resultsURL := config.CollectorURL + "/remediator/results"
+	retryConfig := DefaultRetryConfig()
+	retryConfig.MaxAttempts = maxRetries
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		if err := reportRemediationResult(resultsURL, result); err == nil {
+	var lastErr error
+	for attempt := 0; attempt < retryConfig.MaxAttempts; attempt++ {
+		err := reportRemediationResult(resultsURL, result)
+		if err == nil {
+			if attempt > 0 {
+				logger.Info("Result reported successfully after retry", map[string]interface{}{
+					"task_id":  result.TaskID,
+					"attempts": attempt + 1,
+				})
+			}
 			return nil
 		}
+		
+		lastErr = err
 
-		if attempt < maxRetries-1 {
-			backoffDuration := time.Duration(1<<uint(attempt)) * time.Second
-			logger.Warn("Failed to report result, retrying with backoff", map[string]interface{}{
-				"attempt":          attempt + 1,
-				"backoff_seconds":  backoffDuration.Seconds(),
-				"max_retries":      maxRetries,
-				"task_id":          result.TaskID,
+		if attempt < retryConfig.MaxAttempts-1 {
+			backoffDelay := retryConfig.CalculateBackoff(attempt)
+			logger.Warn("Failed to report result, retrying with exponential backoff", map[string]interface{}{
+				"attempt":         attempt + 1,
+				"max_attempts":    retryConfig.MaxAttempts,
+				"backoff_seconds": backoffDelay.Seconds(),
+				"task_id":         result.TaskID,
+				"error":           err.Error(),
 			})
-			time.Sleep(backoffDuration)
+			time.Sleep(backoffDelay)
 		}
 	}
 
-	return fmt.Errorf("failed to report result after %d attempts", maxRetries)
+	logger.Error("Failed to report result after all retries", map[string]interface{}{
+		"task_id":     result.TaskID,
+		"attempts":    retryConfig.MaxAttempts,
+		"final_error": lastErr.Error(),
+	})
+
+	return fmt.Errorf("failed to report result after %d attempts: %w", retryConfig.MaxAttempts, lastErr)
 }
 
 // reportRemediationResult sends a single result to the API via HTTP POST

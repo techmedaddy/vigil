@@ -12,10 +12,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.db import get_db, Action
 from app.core.logger import get_logger
 from app.core.config import get_settings
+from app.core.utils import retry
 
 # Import metrics module if available
 try:
@@ -175,6 +177,91 @@ class ListActionsResponse(BaseModel):
     actions: List[ActionDetailResponse] = Field(..., description="List of actions")
 
 
+# --- Helper functions with retry logic ---
+
+@retry(
+    max_attempts=None,  # Use config default
+    backoff_strategy="exponential",
+    exceptions=(SQLAlchemyError,),
+    log_retries=True
+)
+async def store_action_in_db(
+    db: AsyncSession,
+    action: Action
+) -> int:
+    """
+    Store action in database with retry logic for transient errors.
+
+    Args:
+        db: Database session
+        action: Action instance to store
+
+    Returns:
+        ID of stored action
+
+    Raises:
+        SQLAlchemyError: On database errors after retries exhausted
+    """
+    db.add(action)
+    await db.flush()
+    return action.id
+
+
+@retry(
+    max_attempts=None,  # Use config default
+    backoff_strategy="exponential",
+    exceptions=(SQLAlchemyError,),
+    log_retries=True
+)
+async def query_actions_from_db(
+    db: AsyncSession,
+    query
+) -> List[Action]:
+    """
+    Query actions from database with retry logic for transient errors.
+
+    Args:
+        db: Database session
+        query: SQLAlchemy query to execute
+
+    Returns:
+        List of actions
+
+    Raises:
+        SQLAlchemyError: On database errors after retries exhausted
+    """
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+@retry(
+    max_attempts=None,  # Use config default
+    backoff_strategy="exponential",
+    exceptions=(SQLAlchemyError,),
+    log_retries=True
+)
+async def query_action_by_id_from_db(
+    db: AsyncSession,
+    action_id: int
+) -> Optional[Action]:
+    """
+    Query action by ID from database with retry logic for transient errors.
+
+    Args:
+        db: Database session
+        action_id: ID of action to retrieve
+
+    Returns:
+        Action instance or None
+
+    Raises:
+        SQLAlchemyError: On database errors after retries exhausted
+    """
+    query = select(Action).where(Action.id == action_id)
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
 # --- Routes ---
 
 @router.get(
@@ -234,9 +321,22 @@ async def create_action(
             started_at=datetime.utcnow()
         )
 
-        # Add to session and flush to get the ID
-        db.add(action)
-        await db.flush()
+        # Store action with retry logic for transient DB errors
+        try:
+            action_id = await store_action_in_db(db, action)
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Failed to store action after retries: {e}",
+                extra={
+                    "target": payload.target,
+                    "action": payload.action
+                },
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create action in database after retries"
+            )
 
         # Record action in Prometheus metrics
         if metrics_available:
@@ -351,9 +451,22 @@ async def list_actions(
         if target:
             query = query.where(Action.target == target)
 
-        # Execute query
-        result = await db.execute(query)
-        actions = result.scalars().all()
+        # Execute query with retry logic
+        try:
+            actions = await query_actions_from_db(db, query)
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Failed to query actions after retries: {e}",
+                extra={
+                    "status_filter": status,
+                    "target_filter": target
+                },
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to retrieve actions from database after retries"
+            )
 
         logger.info(
             f"Retrieved {len(actions)} actions",
@@ -424,9 +537,19 @@ async def get_action_detail(
             extra={"action_id": action_id}
         )
 
-        query = select(Action).where(Action.id == action_id)
-        result = await db.execute(query)
-        action = result.scalar_one_or_none()
+        # Query action with retry logic
+        try:
+            action = await query_action_by_id_from_db(db, action_id)
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Failed to query action after retries: {e}",
+                extra={"action_id": action_id},
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to retrieve action from database after retries"
+            )
 
         if action is None:
             logger.warning(
@@ -521,8 +644,19 @@ async def get_actions_by_status(
             .limit(limit)
         )
 
-        result = await db.execute(query)
-        actions = result.scalars().all()
+        # Execute query with retry logic
+        try:
+            actions = await query_actions_from_db(db, query)
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Failed to query actions by status after retries: {e}",
+                extra={"status": action_status},
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to retrieve actions from database after retries"
+            )
 
         logger.info(
             f"Retrieved {len(actions)} {action_status} actions",

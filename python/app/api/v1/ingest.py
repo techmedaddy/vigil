@@ -10,10 +10,12 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field, validator
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.db import get_db, Metric
 from app.core.logger import get_logger
 from app.core.config import get_settings
+from app.core.utils import retry
 
 # Import metrics module if available
 try:
@@ -141,12 +143,18 @@ def get_evaluator():
 
 # --- Background task ---
 
+@retry(
+    max_attempts=3,
+    backoff_strategy="exponential",
+    exceptions=(Exception,),
+    log_retries=True
+)
 async def trigger_remediation(
     payload: Dict[str, Any],
     remediator_url: str
 ) -> None:
     """
-    Background task to trigger remediation actions.
+    Background task to trigger remediation actions with retry logic.
 
     Args:
         payload: Remediation request payload
@@ -154,36 +162,56 @@ async def trigger_remediation(
     """
     import httpx
 
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(remediator_url, json=payload)
-            if response.status_code < 300:
-                logger.info(
-                    "Remediation triggered successfully",
-                    extra={
-                        "service": payload.get("service"),
-                        "action": payload.get("action"),
-                        "status_code": response.status_code
-                    }
-                )
-            else:
-                logger.warning(
-                    f"Remediation request failed: {response.status_code}",
-                    extra={
-                        "service": payload.get("service"),
-                        "action": payload.get("action"),
-                        "status_code": response.status_code
-                    }
-                )
-    except Exception as e:
-        logger.error(
-            f"Failed to trigger remediation: {e}",
-            extra={
-                "service": payload.get("service"),
-                "action": payload.get("action")
-            },
-            exc_info=True
-        )
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.post(remediator_url, json=payload)
+        if response.status_code < 300:
+            logger.info(
+                "Remediation triggered successfully",
+                extra={
+                    "service": payload.get("service"),
+                    "action": payload.get("action"),
+                    "status_code": response.status_code
+                }
+            )
+        else:
+            logger.warning(
+                f"Remediation request failed: {response.status_code}",
+                extra={
+                    "service": payload.get("service"),
+                    "action": payload.get("action"),
+                    "status_code": response.status_code
+                }
+            )
+            # Raise exception to trigger retry
+            raise Exception(f"Remediation request failed with status {response.status_code}")
+
+
+@retry(
+    max_attempts=None,  # Use config default
+    backoff_strategy="exponential",
+    exceptions=(SQLAlchemyError,),
+    log_retries=True
+)
+async def store_metric_in_db(
+    db: AsyncSession,
+    metric: Metric
+) -> int:
+    """
+    Store metric in database with retry logic for transient errors.
+
+    Args:
+        db: Database session
+        metric: Metric instance to store
+
+    Returns:
+        ID of stored metric
+
+    Raises:
+        SQLAlchemyError: On database errors after retries exhausted
+    """
+    db.add(metric)
+    await db.flush()
+    return metric.id
 
 
 # --- Routes ---
@@ -241,9 +269,19 @@ async def ingest_metric(
             timestamp=datetime.utcnow()
         )
 
-        # Add to session and flush to get the ID
-        db.add(metric)
-        await db.flush()
+        # Store metric with retry logic for transient DB errors
+        try:
+            metric_id = await store_metric_in_db(db, metric)
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Failed to store metric after retries: {e}",
+                extra={"metric_name": payload.name},
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to store metric in database after retries"
+            )
 
         # Record metric ingestion in Prometheus
         if metrics_available:
