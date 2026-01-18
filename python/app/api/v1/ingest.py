@@ -394,3 +394,38 @@ async def health_check() -> Dict[str, str]:
         Health status
     """
     return {"status": "healthy", "service": "ingest"}
+
+
+@router.post(
+    "/agent/metrics",
+    response_model=IngestMetricResponse,
+    status_code=201,
+    summary="Ingest metrics from agent",
+    description="Agent-specific endpoint for metric ingestion (alias for main ingest endpoint)"
+)
+async def ingest_agent_metrics(
+    payload: IngestMetricRequest,
+    db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
+    evaluator=Depends(get_evaluator),
+    settings=Depends(lambda: get_settings()),
+) -> IngestMetricResponse:
+    """
+    Ingest metrics from Vigil agent.
+    
+    This is an alias endpoint specifically for the Go agent which appends
+    /agent/metrics to the collector URL. It uses the same logic as the
+    main ingest endpoint.
+    
+    Args:
+        payload: Metric data from agent
+        db: Database session
+        background_tasks: FastAPI background tasks
+        evaluator: Policy evaluator dependency
+        settings: Application settings
+    
+    Returns:
+        IngestMetricResponse with metric ID and status
+    """
+    # Use the same logic as ingest_metric
+    return await ingest_metric(payload, db, background_tasks, evaluator, settings)
