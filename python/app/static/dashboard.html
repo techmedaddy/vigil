@@ -1,6 +1,438 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    pytest.main([__file__, "-v"])if __name__ == "__main__":            assert worker.tasks_processed == 1            assert worker.tasks_failed == 1            # Verify worker continued after first failure                        await worker._process_task(tasks[1])            await worker._process_task(tasks[0])            # Process both tasks                        worker = RemediationWorker()                        from app.services.worker import RemediationWorker                         patch('app.services.worker.get_db_async'):             patch('app.services.worker.httpx.AsyncClient', return_value=mock_client), \        with patch('app.services.worker.get_queue_client', return_value=mock_queue_client), \                mock_client.__aenter__.return_value.post = AsyncMock(side_effect=get_response)        mock_client = AsyncMock()                    return resp            response_index["index"] += 1            resp = mock_responses[response_index["index"]]        def get_response(*args, **kwargs):                response_index = {"index": 0}        ]            AsyncMock(status_code=200),            AsyncMock(status_code=500, text="Error"),        mock_responses = [        # First task fails, second succeeds                mock_queue_client.increment_failed = MagicMock()        mock_queue_client.increment_completed = MagicMock()        mock_queue_client.dequeue_task.side_effect = dequeue_side_effect        mock_queue_client = MagicMock()                    return None                return task                task_index["index"] += 1                task = tasks[task_index["index"]]            if task_index["index"] < len(tasks):        def dequeue_side_effect(timeout):                task_index = {"index": 0}                ]            {"action_id": "2", "target": "service2", "action": "restart"},            {"action_id": "1", "target": "service1", "action": "restart"},        tasks = [        """Test that worker continues processing after task failure."""    async def test_worker_continues_on_task_failure(self):    @pytest.mark.asyncio                assert call_count["count"] == 3            assert result is True            # Should succeed after retries                        result = client.enqueue_task(payload)                        payload = {"action_id": "retry_test", "target": "test"}            client = QueueClient()                        from app.core.queue import QueueClient        with patch('redis.from_url', return_value=mock_redis):                mock_redis.hset = MagicMock()        mock_redis.hincrby = MagicMock()        mock_redis.ping = MagicMock()        mock_redis.rpush.side_effect = rpush_side_effect                    return 1                raise ConnectionError("Redis connection failed")            if call_count["count"] < 3:            call_count["count"] += 1        def rpush_side_effect(*args, **kwargs):                call_count = {"count": 0}        mock_redis = MagicMock()        # Create mock that fails first 2 times, then succeeds        """Test that enqueue retries on transient failures."""    def test_enqueue_retry_on_failure(self):        """Test queue resilience and error handling."""class TestQueueResilience:            assert response["worker"]["success_rate"] == 94.74            assert response["worker"]["running"] is True            assert response["queue"]["tasks_completed"] == 90            assert response["queue"]["queue_length"] == 5            assert response["ok"] is True                        response = await get_queue_statistics()                        from app.api.v1.ui import get_queue_statistics                        mock_get_worker.return_value = mock_worker            mock_worker.get_status.return_value = mock_worker_status            mock_worker = MagicMock()                         patch('app.api.v1.ui.get_worker') as mock_get_worker:        with patch('app.api.v1.ui.get_queue_stats', return_value=mock_stats), \                }            "success_rate": 94.74,            "tasks_failed": 5,            "tasks_processed": 90,            "running": True,        mock_worker_status = {                }            }                "timestamp": datetime.utcnow().isoformat(),                "target": "test-service",                "action_id": "123",            "last_processed_task": {            "tasks_failed": 5,            "tasks_completed": 90,            "tasks_dequeued": 95,            "tasks_enqueued": 100,            "queue_length": 5,        mock_stats = {        """Test queue stats endpoint returns correct data."""    async def test_queue_stats_endpoint_success(self):    @pytest.mark.asyncio        """Test /queue/stats API endpoint."""class TestQueueEndpoint:            assert any("Task enqueued" in str(call) for call in log_calls)            assert any("Remediation action recorded" in str(call) for call in log_calls)            log_calls = [str(call) for call in mock_logger.info.call_args_list]            # Check for specific log messages                        assert mock_logger.info.called            # Verify logging occurred                        )                policy_name="audit_policy",                params={"severity": "critical"},                action_type="scale",                target="audit-service",            await execute_remediation_action(                        from app.core.policy_runner import execute_remediation_action                        mock_session.flush = AsyncMock()            mock_session.add = MagicMock()            mock_db_manager.return_value.get_session_context.return_value.__aenter__.return_value = mock_session            mock_action.id = 456            mock_action = MagicMock()            mock_session = AsyncMock()                         patch('app.core.policy_runner.enqueue_task'):             patch('app.core.policy_runner.get_db_manager') as mock_db_manager, \        with patch('app.core.policy_runner.logger') as mock_logger, \                # In a real scenario, we'd check actual log entries        # This test verifies logging at each stage        """Test that audit trail is complete from ingestion to action."""    async def test_audit_trail_completeness(self):    @pytest.mark.asyncio                assert "action_id" in call_args            assert call_args["severity"] == "high"            assert call_args["action"] == "restart"            assert call_args["target"] == "test-service"            call_args = mock_enqueue.call_args[0][0]            # Verify task payload                        assert mock_enqueue.called            assert result is True                        )                policy_name="test_policy",                params={"severity": "high"},                action_type="restart",                target="test-service",            result = await execute_remediation_action(                        from app.core.policy_runner import execute_remediation_action                        mock_session.flush = AsyncMock()            mock_session.add = MagicMock()            mock_db_manager.return_value.get_session_context.return_value.__aenter__.return_value = mock_session                         patch('app.core.policy_runner.enqueue_task') as mock_enqueue:        with patch('app.core.policy_runner.get_db_manager') as mock_db_manager, \        # Mock enqueue_task                mock_action.id = 123        mock_action = MagicMock()        mock_session = AsyncMock()        # Mock database session        """Test that policy violation creates action and enqueues task."""    async def test_policy_violation_enqueues_task(self):    @pytest.mark.asyncio        """Test complete flow from policy violation to action execution."""class TestEndToEndFlow:        assert status["success_rate"] == 83.33  # 10/12 * 100        assert status["tasks_failed"] == 2        assert status["tasks_processed"] == 10        assert status["running"] is False                status = worker.get_status()                worker.tasks_failed = 2        worker.tasks_processed = 10        worker.started_at = datetime.utcnow()        worker = RemediationWorker()                from app.services.worker import RemediationWorker        """Test worker status reporting."""    async def test_worker_status(self):    @pytest.mark.asyncio                assert worker.tasks_failed == 1            assert worker.tasks_processed == 0            # Verify task was marked failed                        await worker._process_task(task_payload)            worker = RemediationWorker()                        from app.services.worker import RemediationWorker                         patch('app.services.worker.get_db_async'):             patch('app.services.worker.httpx.AsyncClient', return_value=mock_client), \        with patch('app.services.worker.get_queue_client', return_value=mock_queue_client), \                mock_client.__aenter__.return_value.post = AsyncMock(return_value=mock_response)        mock_client = AsyncMock()        mock_response.text = "Internal Server Error"        mock_response.status_code = 500        mock_response = AsyncMock()        # Mock httpx client with failure                }            "timestamp": datetime.utcnow().isoformat(),            "severity": "high",            "action": "restart",            "target": "failed-service",            "action_id": "999",            "task_id": "task_456",        task_payload = {        """Test worker handles remediator service failures."""    async def test_worker_handles_remediator_failure(self, mock_queue_client):    @pytest.mark.asyncio                assert worker.tasks_failed == 0            assert worker.tasks_processed == 1            # Verify task was marked completed                        assert "/remediate" in str(call_args)            call_args = mock_client.__aenter__.return_value.post.call_args            assert mock_client.__aenter__.return_value.post.called            # Verify remediator was called                        await worker._process_task(task_payload)            worker = RemediationWorker()                        from app.services.worker import RemediationWorker                         patch('app.services.worker.get_db_async'):             patch('app.services.worker.httpx.AsyncClient', return_value=mock_client), \        with patch('app.services.worker.get_queue_client', return_value=mock_queue_client), \                mock_client.__aenter__.return_value.post = AsyncMock(return_value=mock_response)        mock_client = AsyncMock()        mock_response.status_code = 200        mock_response = AsyncMock()        # Mock httpx client                }            "timestamp": datetime.utcnow().isoformat(),            "severity": "high",            "action": "restart",            "target": "api-service",            "action_id": "789",            "task_id": "task_123",        task_payload = {        """Test worker processes task and calls remediator."""    async def test_worker_processes_task_successfully(self, mock_queue_client):    @pytest.mark.asyncio            return client        client.increment_failed = MagicMock()        client.increment_completed = MagicMock()        client.dequeue_task = MagicMock(return_value=None)        client = MagicMock()        """Create mock queue client."""    def mock_queue_client(self):    @pytest.fixture        """Test worker task processing logic."""class TestWorkerProcessing:            assert stats["tasks_failed"] == 2            assert stats["tasks_completed"] == 5            assert stats["tasks_dequeued"] == 7            assert stats["tasks_enqueued"] == 10            assert stats["queue_length"] == 3                        stats = client.get_queue_stats()            client = QueueClient()                        from app.core.queue import QueueClient        with patch('redis.from_url', return_value=mock_redis):                }.get(field)            "tasks_failed": "2",            "tasks_completed": "5",            "tasks_dequeued": "7",            "tasks_enqueued": "10",        mock_redis.hget.side_effect = lambda key, field: {        mock_redis.llen.return_value = 3        """Test getting queue statistics."""    def test_get_queue_stats(self, mock_redis):                mock_redis.llen.assert_called_once_with("remediation_queue")            assert length == 5                        length = client.get_queue_length()            client = QueueClient()                        from app.core.queue import QueueClient        with patch('redis.from_url', return_value=mock_redis):                mock_redis.llen.return_value = 5        """Test getting queue length."""    def test_get_queue_length(self, mock_redis):                assert result is None                        result = client.dequeue_task(timeout=1)            client = QueueClient()                        from app.core.queue import QueueClient        with patch('redis.from_url', return_value=mock_redis):                mock_redis.blpop.return_value = None        """Test dequeue timeout when no tasks available."""    def test_dequeue_task_timeout(self, mock_redis):                assert "dequeued_at" in result            assert result["target"] == "db-service"            assert result["action_id"] == "456"            assert result is not None                        result = client.dequeue_task(timeout=5)            client = QueueClient()                        from app.core.queue import QueueClient        with patch('redis.from_url', return_value=mock_redis):                mock_redis.blpop.return_value = ("remediation_queue", json.dumps(task_payload))        }            "timestamp": datetime.utcnow().isoformat(),            "severity": "critical",            "target": "db-service",            "action_id": "456",        task_payload = {        """Test successful task dequeue."""    def test_dequeue_task_with_data(self, mock_redis):                assert "task_id" in task_data            assert "enqueued_at" in task_data            assert task_data["target"] == "web-service"            assert task_data["action_id"] == "123"            task_data = json.loads(task_json)            task_json = call_args[0][1]            # Verify JSON structure                        assert call_args[0][0] == "remediation_queue"            call_args = mock_redis.rpush.call_args            assert mock_redis.rpush.called            assert result is True                        result = client.enqueue_task(payload)                        }                "timestamp": datetime.utcnow().isoformat(),                "severity": "high",                "target": "web-service",                "action_id": "123",            payload = {            client = QueueClient()                        from app.core.queue import QueueClient        with patch('redis.from_url', return_value=mock_redis):        """Test successful task enqueue."""    def test_enqueue_task_success(self, mock_redis):            return redis_mock        redis_mock.ping = MagicMock()        redis_mock.hset = MagicMock()        redis_mock.hget = MagicMock(return_value=None)        redis_mock.hincrby = MagicMock()        redis_mock.llen = MagicMock(return_value=0)        redis_mock.blpop = MagicMock(return_value=None)        redis_mock.rpush = MagicMock(return_value=1)        redis_mock = MagicMock()        """Create mock Redis client."""    def mock_redis(self):    @pytest.fixture        """Test core queue enqueue/dequeue operations."""class TestQueueOperations:# Test queue operationsfrom datetime import datetimefrom unittest.mock import Mock, AsyncMock, patch, MagicMockimport asyncioimport jsonimport pytest"""- Audit trail verification- End-to-end flow: policy violation → queue → worker → action- Worker task processing- Queue enqueue/dequeue operationsTests cover:<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vigil Dashboard</title>
@@ -384,6 +816,14 @@
                 </div>
             </div>
             
+            <!-- Queue Stats -->
+            <div class="card">
+                <h2>🔄 Task Queue</h2>
+                <div id="queueContent">
+                    <div class="loading"><span class="spinner"></span>Loading queue stats...</div>
+                </div>
+            </div>
+            
             <!-- System Status -->
             <div class="card">
                 <h2>📈 System Status</h2>
@@ -435,6 +875,7 @@
         const REFRESH_INTERVAL = 5000; // 5 seconds
         const METRICS_ENDPOINT = '/metrics';
         const POLICIES_ENDPOINT = '/api/v1/ui/policies';
+        const QUEUE_ENDPOINT = '/api/v1/ui/queue/stats';
         
         // Format timestamp
         function formatTimestamp(isoString) {
@@ -617,6 +1058,90 @@
             `;
         }
         
+        // Fetch and display queue stats
+        async function updateQueueStats() {
+            try {
+                const response = await fetch(QUEUE_ENDPOINT);
+                if (!response.ok) throw new Error('Failed to fetch queue stats');
+                
+                const data = await response.json();
+                const html = buildQueueHTML(data);
+                document.getElementById('queueContent').innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error updating queue stats:', error);
+                document.getElementById('queueContent').innerHTML = `
+                    <div class="empty-state">Unable to load queue stats</div>
+                `;
+            }
+        }
+        
+        // Build queue HTML
+        function buildQueueHTML(data) {
+            if (!data.ok) {
+                return '<div class="empty-state">Queue unavailable</div>';
+            }
+            
+            const queue = data.queue || {};
+            const worker = data.worker || {};
+            
+            const queueLength = queue.queue_length || 0;
+            const tasksEnqueued = queue.tasks_enqueued || 0;
+            const tasksCompleted = queue.tasks_completed || 0;
+            const tasksFailed = queue.tasks_failed || 0;
+            const tasksDequeued = queue.tasks_dequeued || 0;
+            
+            const workerRunning = worker.running ? 
+                `<span class="status healthy">Running</span>` : 
+                `<span class="status disabled">Stopped</span>`;
+            
+            const successRate = worker.success_rate !== undefined ? 
+                worker.success_rate.toFixed(1) + '%' : '--';
+            
+            let html = `
+                <div class="metric">
+                    <span class="metric-label">Queue Length</span>
+                    <span class="metric-value large">${queueLength}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Worker Status</span>
+                    ${workerRunning}
+                </div>
+                <h3>Statistics</h3>
+                <div class="metric">
+                    <span class="metric-label">Tasks Enqueued</span>
+                    <span class="metric-value">${tasksEnqueued}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Tasks Completed</span>
+                    <span class="metric-value">${tasksCompleted}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Tasks Failed</span>
+                    <span class="metric-value">${tasksFailed}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Success Rate</span>
+                    <span class="metric-value">${successRate}</span>
+                </div>
+            `;
+            
+            // Show last processed task if available
+            if (queue.last_processed_task) {
+                const last = queue.last_processed_task;
+                html += `
+                    <h3>Last Processed</h3>
+                    <p style="font-size: 12px; color: #666;">
+                        <strong>Action:</strong> ${last.action_id || 'N/A'}<br>
+                        <strong>Target:</strong> ${last.target || 'N/A'}<br>
+                        <strong>Time:</strong> ${formatTimestamp(last.timestamp)}
+                    </p>
+                `;
+            }
+            
+            return html;
+        }
+        
         // Update last update timestamp
         function updateTimestamp() {
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
@@ -627,6 +1152,7 @@
             updateTimestamp();
             await updateMetrics();
             await updatePolicies();
+            await updateQueueStats();
         }
         
         // Set up periodic refresh
@@ -634,6 +1160,7 @@
             updateTimestamp();
             await updateMetrics();
             await updatePolicies();
+            await updateQueueStats();
         }, REFRESH_INTERVAL);
         
         // Initialize on page load

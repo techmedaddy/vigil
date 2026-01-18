@@ -19,6 +19,7 @@ from app.core.config import get_settings
 from app.core.logger import get_logger
 from app.core.policy import evaluate_policies, get_policy_registry
 from app.core.db import get_db_manager, Metric, Action
+from app.core.queue import enqueue_task
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -105,7 +106,7 @@ async def execute_remediation_action(
     policy_name: str,
 ) -> bool:
     """
-    Execute a remediation action by storing it in the database.
+    Execute a remediation action by storing it in the database and enqueuing it.
 
     Args:
         target: Target resource identifier
@@ -114,7 +115,7 @@ async def execute_remediation_action(
         policy_name: Name of policy that triggered the action
 
     Returns:
-        True if action was successfully recorded, False otherwise
+        True if action was successfully recorded and enqueued, False otherwise
     """
     try:
         db_manager = get_db_manager()
@@ -124,7 +125,7 @@ async def execute_remediation_action(
             action = Action(
                 target=target,
                 action=action_type,
-                status="pending",
+                status="queued",  # Changed from "pending" to "queued"
                 details=json.dumps({
                     "policy_name": policy_name,
                     "params": params,
@@ -135,23 +136,66 @@ async def execute_remediation_action(
             session.add(action)
             await session.flush()
             
+            action_id = action.id
+            
             logger.info(
                 "Remediation action recorded",
-                action_id=action.id,
-                target=target,
-                action_type=action_type,
-                policy_name=policy_name,
+                extra={
+                    "action_id": action_id,
+                    "target": target,
+                    "action_type": action_type,
+                    "policy_name": policy_name,
+                }
             )
+            
+            # Enqueue task for worker to process
+            task_payload = {
+                "action_id": str(action_id),
+                "target": target,
+                "action": action_type,
+                "severity": params.get("severity", "medium"),
+                "timestamp": datetime.utcnow().isoformat(),
+                "policy_id": policy_name,
+                "alert_id": params.get("alert_id"),
+                "request_id": f"policy_{policy_name}_{action_id}",
+            }
+            
+            try:
+                enqueue_task(task_payload)
+                logger.info(
+                    "Task enqueued for action",
+                    extra={
+                        "action_id": action_id,
+                        "target": target,
+                        "action_type": action_type,
+                    }
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed to enqueue task",
+                    extra={
+                        "action_id": action_id,
+                        "target": target,
+                        "action_type": action_type,
+                        "error": str(e),
+                    }
+                )
+                # Update action status to failed
+                action.status = "failed"
+                await session.flush()
+                return False
             
             return True
             
     except Exception as e:
         logger.error(
             "Failed to execute remediation action",
-            target=target,
-            action_type=action_type,
-            policy_name=policy_name,
-            error=str(e),
+            extra={
+                "target": target,
+                "action_type": action_type,
+                "policy_name": policy_name,
+                "error": str(e),
+            },
             exc_info=True,
         )
         return False

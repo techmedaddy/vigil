@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import get_logger
 from app.core.db import Alert, Action, get_session
+from app.core.queue import get_queue_stats
 
 # Get router logger
 logger = get_logger(__name__)
@@ -642,6 +643,69 @@ async def get_policy_status(request: Request) -> Dict:
                 "enabled_policies": 0,
                 "recent_violations": 0,
                 "remediation_actions": 0,
+            }
+        }
+
+
+@router.get(
+    "/queue/stats",
+    summary="Get Queue Statistics",
+    description="Get current queue statistics including length, processed tasks, and worker status"
+)
+async def get_queue_statistics() -> Dict:
+    """
+    Get queue statistics for monitoring.
+    
+    Returns:
+        Dict containing:
+        - queue_length: Current number of tasks in queue
+        - tasks_enqueued: Total tasks enqueued
+        - tasks_dequeued: Total tasks dequeued
+        - tasks_completed: Total tasks completed
+        - tasks_failed: Total tasks failed
+        - last_processed_task: Info about last processed task
+        - worker_status: Current worker status
+        - timestamp: Response timestamp
+    """
+    try:
+        # Get queue stats from Redis
+        stats = get_queue_stats()
+        
+        # Get worker status
+        try:
+            from app.services.worker import get_worker
+            worker = get_worker()
+            worker_status = worker.get_status()
+        except Exception as e:
+            logger.warning(f"Could not get worker status: {e}")
+            worker_status = {
+                "running": False,
+                "error": str(e)
+            }
+        
+        return {
+            "ok": True,
+            "timestamp": datetime.utcnow().isoformat(),
+            "queue": stats,
+            "worker": worker_status,
+        }
+    
+    except Exception as e:
+        logger.error(
+            f"Failed to get queue stats: {e}",
+            exc_info=True
+        )
+        return {
+            "ok": False,
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": str(e),
+            "queue": {
+                "queue_length": 0,
+                "error": "Failed to fetch queue stats"
+            },
+            "worker": {
+                "running": False,
+                "error": "Could not get worker status"
             }
         }
 

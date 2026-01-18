@@ -258,6 +258,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         await session.close()
 
 
+# Alias for backward compatibility
+get_db_async = get_db
+
+
 async def init_db() -> None:
     """
     Initialize database at application startup.

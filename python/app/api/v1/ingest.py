@@ -16,6 +16,7 @@ from app.core.db import get_db, Metric
 from app.core.logger import get_logger
 from app.core.config import get_settings
 from app.core.utils import retry
+from app.core.queue import enqueue_task
 
 # Import metrics module if available
 try:
