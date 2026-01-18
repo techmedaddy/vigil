@@ -17,6 +17,13 @@ from app.core.db import get_db, Action
 from app.core.logger import get_logger
 from app.core.config import get_settings
 
+# Import metrics module if available
+try:
+    from app.core import metrics
+    metrics_available = True
+except ImportError:
+    metrics_available = False
+
 logger = get_logger(__name__)
 
 # Create router with /actions prefix
@@ -230,6 +237,24 @@ async def create_action(
         # Add to session and flush to get the ID
         db.add(action)
         await db.flush()
+
+        # Record action in Prometheus metrics
+        if metrics_available:
+            try:
+                metrics.record_action(
+                    target=payload.target,
+                    action=payload.action,
+                    status=payload.status
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to record action metric",
+                    extra={
+                        "target": payload.target,
+                        "action": payload.action,
+                        "error": str(e)
+                    }
+                )
 
         logger.warning(
             "Action created",

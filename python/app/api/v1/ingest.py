@@ -15,6 +15,13 @@ from app.core.db import get_db, Metric
 from app.core.logger import get_logger
 from app.core.config import get_settings
 
+# Import metrics module if available
+try:
+    from app.core import metrics
+    metrics_available = True
+except ImportError:
+    metrics_available = False
+
 # Import policy engine if available
 try:
     from app.core.policy import evaluate_policies
@@ -237,6 +244,16 @@ async def ingest_metric(
         # Add to session and flush to get the ID
         db.add(metric)
         await db.flush()
+
+        # Record metric ingestion in Prometheus
+        if metrics_available:
+            try:
+                metrics.record_ingest(metric_name=payload.name)
+            except Exception as e:
+                logger.warning(
+                    "Failed to record ingest metric",
+                    extra={"metric_name": payload.name, "error": str(e)}
+                )
 
         logger.info(
             "Metric stored successfully",

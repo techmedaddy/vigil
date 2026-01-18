@@ -32,6 +32,20 @@ actions_total = Counter(
     registry=_registry,
 )
 
+ingest_total = Counter(
+    name="ingest_total",
+    documentation="Total metrics ingested into Vigil",
+    labelnames=["metric_name"],
+    registry=_registry,
+)
+
+policy_evaluation_total = Counter(
+    name="policy_evaluation_total",
+    documentation="Total policy evaluations performed",
+    labelnames=["policy_name", "result"],
+    registry=_registry,
+)
+
 # --- Histograms ---
 
 request_latency = Histogram(
@@ -40,6 +54,14 @@ request_latency = Histogram(
     labelnames=["endpoint"],
     registry=_registry,
     buckets=(0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0),
+)
+
+drift_detection_latency = Histogram(
+    name="drift_detection_latency_seconds",
+    documentation="Time taken for GitOpsD drift detection operations in seconds",
+    labelnames=["manifest_type", "status"],
+    registry=_registry,
+    buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
 )
 
 
@@ -104,4 +126,55 @@ def record_action(target: str, action: str, status: str) -> None:
             action=action,
             status=status,
             error=str(e),
+        )
+
+
+def record_ingest(metric_name: str) -> None:
+    """
+    Record metric ingestion event.
+
+    Args:
+        metric_name: Name of the metric being ingested (e.g., 'cpu_usage', 'memory_usage')
+    """
+    try:
+        ingest_total.labels(metric_name=metric_name).inc()
+    except Exception as e:
+        logger.error(
+            "Failed to record ingest metrics",
+            extra={"metric_name": metric_name, "error": str(e)}
+        )
+
+
+def record_policy_evaluation(policy_name: str, result: str) -> None:
+    """
+    Record policy evaluation event.
+
+    Args:
+        policy_name: Name of the policy evaluated
+        result: Evaluation result ('triggered', 'passed', 'error')
+    """
+    try:
+        policy_evaluation_total.labels(policy_name=policy_name, result=result).inc()
+    except Exception as e:
+        logger.error(
+            "Failed to record policy evaluation metrics",
+            extra={"policy_name": policy_name, "result": result, "error": str(e)}
+        )
+
+
+def record_drift_detection(manifest_type: str, status: str, latency_seconds: float) -> None:
+    """
+    Record GitOpsD drift detection operation metrics.
+
+    Args:
+        manifest_type: Type of manifest checked (e.g., 'service', 'alert', 'policy')
+        status: Detection status ('drift_found', 'no_drift', 'error')
+        latency_seconds: Time taken for drift detection in seconds
+    """
+    try:
+        drift_detection_latency.labels(manifest_type=manifest_type, status=status).observe(latency_seconds)
+    except Exception as e:
+        logger.error(
+            "Failed to record drift detection metrics",
+            extra={"manifest_type": manifest_type, "status": status, "error": str(e)}
         )

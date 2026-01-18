@@ -178,6 +178,7 @@ func validateAPIConnectivity() error {
 
 // performDriftDetection orchestrates the complete drift detection cycle
 func performDriftDetection() {
+	startTime := time.Now()
 	logger.Debug("Starting drift detection scan", map[string]interface{}{})
 
 	// Load all manifests from directory
@@ -187,6 +188,7 @@ func performDriftDetection() {
 			"error": err.Error(),
 			"path":  config.ManifestsPath,
 		})
+		recordDriftDetectionMetric("error", "error", time.Since(startTime).Seconds())
 		return
 	}
 
@@ -204,10 +206,16 @@ func performDriftDetection() {
 	// Detect drift between manifests and cluster state
 	driftEvents := detectDrift(manifests, clusterState)
 
+	detectionLatency := time.Since(startTime).Seconds()
+
 	if len(driftEvents) > 0 {
 		logger.Info("Drift detected", map[string]interface{}{
-			"drift_count": len(driftEvents),
+			"drift_count":       len(driftEvents),
+			"detection_latency": fmt.Sprintf("%.3fs", detectionLatency),
 		})
+
+		// Record metric for drift detection with drift found
+		recordDriftDetectionMetric("all", "drift_found", detectionLatency)
 
 		// Report drift events to API
 		for _, event := range driftEvents {
@@ -219,7 +227,12 @@ func performDriftDetection() {
 			}
 		}
 	} else {
-		logger.Debug("No drift detected", map[string]interface{}{})
+		logger.Debug("No drift detected", map[string]interface{}{
+			"detection_latency": fmt.Sprintf("%.3fs", detectionLatency),
+		})
+		
+		// Record metric for drift detection with no drift
+		recordDriftDetectionMetric("all", "no_drift", detectionLatency)
 	}
 }
 
@@ -511,6 +524,59 @@ func loadConfig() (Config, error) {
 	}
 
 	return config, nil
+}
+
+// recordDriftDetectionMetric sends drift detection latency metrics to the collector API
+// This allows tracking performance of drift detection operations in Prometheus
+func recordDriftDetectionMetric(manifestType, status string, latencySeconds float64) {
+	// Create a metric payload for drift detection latency
+	metric := map[string]interface{}{
+		"name":  "drift_detection_latency_seconds",
+		"value": latencySeconds,
+		"tags": map[string]string{
+			"manifest_type": manifestType,
+			"status":        status,
+		},
+	}
+
+	jsonData, err := json.Marshal(metric)
+	if err != nil {
+		logger.Warn("Failed to marshal drift detection metric", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Post to ingest endpoint
+	ingestURL := strings.Replace(config.CollectorURL, "/actions", "/ingest", 1)
+	req, err := http.NewRequest("POST", ingestURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		logger.Warn("Failed to create metric request", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", fmt.Sprintf("vigil-gitopsd/%s", gitopsVersion))
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		logger.Warn("Failed to send drift detection metric", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+	defer resp.Body.Close()
+	io.ReadAll(resp.Body) // Discard response body
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		logger.Debug("Drift detection metric recorded", map[string]interface{}{
+			"manifest_type":   manifestType,
+			"status":          status,
+			"latency_seconds": fmt.Sprintf("%.3f", latencySeconds),
+		})
+	}
 }
 
 // gracefulShutdown performs cleanup on shutdown

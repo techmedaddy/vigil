@@ -7,6 +7,12 @@ services:
     container_name: vigil_redis
     ports:
       - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
   postgres:
     image: postgres:15-alpine
@@ -19,6 +25,12 @@ services:
       - pg_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vigil -d vigil"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # -------------------------
   # Python API (Collector + Policy Engine)
@@ -36,16 +48,25 @@ services:
       DATABASE_URL: postgresql+asyncpg://vigil:vigilpass@postgres:5432/vigil
       REDIS_URL: redis://redis:6379/0
       CONFIG_PATH: /app/configs/collector.yaml
+      METRICS_ENABLED: "true"
     command: >
       sh -c "
-        pip install --no-cache-dir fastapi uvicorn redis psycopg2-binary asyncpg pyyaml python-dotenv requests pydantic-settings sqlalchemy &&
+        pip install --no-cache-dir fastapi uvicorn redis psycopg2-binary asyncpg pyyaml python-dotenv requests pydantic-settings sqlalchemy prometheus-client &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
     ports:
       - "8000:8000"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # -------------------------
   # Go GitOps Daemon
@@ -66,8 +87,14 @@ services:
         go run ./gitopsd/cmd/gitopsd
       "
     depends_on:
-      - api
-      - redis
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f gitopsd || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   # -------------------------
   # Go Agent (Metrics Producer)
@@ -88,8 +115,14 @@ services:
         go run ./agent/cmd/agent
       "
     depends_on:
-      - api
-      - redis
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f agent || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   # -------------------------
   # Go Remediator
@@ -110,11 +143,44 @@ services:
         go run ./remediator/cmd/remediator
       "
     depends_on:
-      - api
-      - redis
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f remediator || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # -------------------------
+  # Prometheus (Metrics Collection)
+  # -------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: vigil_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 # -------------------------
 # Volumes
 # -------------------------
 volumes:
   pg_data:
+  prometheus_data:
