@@ -33,7 +33,6 @@ def configure_test_logging():
     logger.info("=" * 80)
 
 
-@pytest.fixture(scope="session")
 def pytest_configure(config):
     """Configure pytest markers."""
     config.addinivalue_line(
