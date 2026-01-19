@@ -189,14 +189,34 @@ cd go/gitopsd/cmd/gitopsd
 go run .
 ```
 
+### Option C — Connect with External Frontend
+
+The backend API is CORS-enabled and accepts requests from:
+- `http://localhost:3000` (default for React, Next.js)
+- `http://localhost:5173` (default for Vite)
+
+**Quick Start:**
+1. Start the backend: `uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload`
+2. Start your frontend: `npm run dev` (on port 3000)
+3. Frontend makes API calls to `http://localhost:8000/api/v1/*`
+
+**Example fetch from frontend:**
+```javascript
+// Fetch recent actions
+const response = await fetch('http://localhost:8000/api/v1/actions?limit=10');
+const data = await response.json();
+console.log(data.actions);
+```
+
+See [GOOGLE_AI_STUDIO_FRONTEND_PROMPT.md](GOOGLE_AI_STUDIO_FRONTEND_PROMPT.md) for complete frontend integration guide.
+
 ### Environment Variables
 
 | Variable            | Default (YAML)                            | Purpose |
 |--------------------|-------------------------------------------|---------|
 | `DATABASE_URL`     | `sqlite:///python/app/vigil.db` or Compose Postgres URI | Controls the collector’s persistence backend. |
 | `REDIS_URL`        | `redis://127.0.0.1:6379/0` (Compose overrides) | Used for pub/sub style evaluation contexts. |
-| `COLLECTOR_PORT`   | `8000`                                    | Port exposed by FastAPI. |
-| `REMEDIATOR_URL`   | `http://127.0.0.1:8081/remediate`         | Where the collector posts remediation actions. |
+| `COLLECTOR_PORT`   | `8000`                                    | Port exposed by FastAPI. || `CORS_ORIGINS`     | `http://localhost:3000,http://localhost:5173` | Allowed frontend origins for CORS (comma-separated). || `REMEDIATOR_URL`   | `http://127.0.0.1:8081/remediate`         | Where the collector posts remediation actions. |
 | `AGENT_INTERVAL`   | `10` seconds                              | Metric publishing cadence per `configs/agent.yaml`. |
 | `GITOPSD_INTERVAL` | `15` seconds                              | Drift polling cadence per `configs/gitopsd.yaml`. |
 | `CONFIG_PATH`      | `configs/*.yaml`                          | Path mounted into API/agents; override to switch profiles. |

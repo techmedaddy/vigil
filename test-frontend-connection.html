@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigil Frontend Connection Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1F2937;
+            color: #F9FAFB;
+        }
+        h1 {
+            color: #3B82F6;
+            border-bottom: 2px solid #3B82F6;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            background: #374151;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #4B5563;
+        }
+        button {
+            background: #3B82F6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563EB;
+        }
+        button:disabled {
+            background: #6B7280;
+            cursor: not-allowed;
+        }
+        .result {
+            background: #111827;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success {
+            border-left: 4px solid #10B981;
+        }
+        .error {
+            border-left: 4px solid #EF4444;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #10B981;
+            color: white;
+        }
+        .status.error {
+            background: #EF4444;
+            color: white;
+        }
+        .endpoint {
+            color: #60A5FA;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔗 Vigil Frontend Connection Test</h1>
+    <p>Test CORS and API connectivity between frontend (port 3000) and backend (port 8000)</p>
+
+    <!-- Test 1: Health Check -->
+    <div class="test-section">
+        <h3>Test 1: Health Check</h3>
+        <p>Endpoint: <span class="endpoint">GET /health</span></p>
+        <button onclick="testHealthCheck()">Run Test</button>
+        <div id="health-result"></div>
+    </div>
+
+    <!-- Test 2: List Actions -->
+    <div class="test-section">
+        <h3>Test 2: List Actions</h3>
+        <p>Endpoint: <span class="endpoint">GET /api/v1/actions?limit=5</span></p>
+        <button onclick="testListActions()">Run Test</button>
+        <div id="actions-result"></div>
+    </div>
+
+    <!-- Test 3: List Policies -->
+    <div class="test-section">
+        <h3>Test 3: List Policies</h3>
+        <p>Endpoint: <span class="endpoint">GET /api/v1/policies</span></p>
+        <button onclick="testListPolicies()">Run Test</button>
+        <div id="policies-result"></div>
+    </div>
+
+    <!-- Test 4: Ingest Metric -->
+    <div class="test-section">
+        <h3>Test 4: Ingest Metric</h3>
+        <p>Endpoint: <span class="endpoint">POST /api/v1/ingest</span></p>
+        <button onclick="testIngestMetric()">Run Test</button>
+        <div id="ingest-result"></div>
+    </div>
+
+    <!-- Test 5: Queue Stats -->
+    <div class="test-section">
+        <h3>Test 5: Queue Statistics</h3>
+        <p>Endpoint: <span class="endpoint">GET /api/v1/ui/queue/stats</span></p>
+        <button onclick="testQueueStats()">Run Test</button>
+        <div id="queue-result"></div>
+    </div>
+
+    <!-- Run All Tests -->
+    <div class="test-section" style="text-align: center;">
+        <button onclick="runAllTests()" style="background: #10B981; font-size: 16px; padding: 15px 30px;">
+            🚀 Run All Tests
+        </button>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+
+        async function makeRequest(endpoint, options = {}) {
+            const url = `${API_BASE_URL}${endpoint}`;
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers,
+                    },
+                });
+
+                const data = await response.json();
+                return {
+                    success: response.ok,
+                    status: response.status,
+                    data: data,
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    error: error.message,
+                };
+            }
+        }
+
+        function displayResult(elementId, result) {
+            const element = document.getElementById(elementId);
+            const statusClass = result.success ? 'success' : 'error';
+            const statusText = result.success ? 'PASS' : 'FAIL';
+            
+            let content = `<span class="status ${statusClass}">${statusText}</span>\n\n`;
+            
+            if (result.success) {
+                content += `HTTP Status: ${result.status}\n\n`;
+                content += JSON.stringify(result.data, null, 2);
+            } else {
+                content += `Error: ${result.error || 'Request failed'}`;
+            }
+            
+            element.innerHTML = `<div class="result ${statusClass}">${content}</div>`;
+        }
+
+        async function testHealthCheck() {
+            const result = await makeRequest('/health');
+            displayResult('health-result', result);
+        }
+
+        async function testListActions() {
+            const result = await makeRequest('/api/v1/actions?limit=5');
+            displayResult('actions-result', result);
+        }
+
+        async function testListPolicies() {
+            const result = await makeRequest('/api/v1/policies');
+            displayResult('policies-result', result);
+        }
+
+        async function testIngestMetric() {
+            const result = await makeRequest('/api/v1/ingest', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: 'frontend_test_metric',
+                    value: 42.5,
+                    tags: {
+                        source: 'connection_test',
+                        timestamp: new Date().toISOString()
+                    }
+                })
+            });
+            displayResult('ingest-result', result);
+        }
+
+        async function testQueueStats() {
+            const result = await makeRequest('/api/v1/ui/queue/stats');
+            displayResult('queue-result', result);
+        }
+
+        async function runAllTests() {
+            console.log('Running all tests...');
+            await testHealthCheck();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await testListActions();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await testListPolicies();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await testIngestMetric();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await testQueueStats();
+            console.log('All tests completed!');
+        }
+
+        // Auto-run health check on page load
+        window.addEventListener('load', () => {
+            setTimeout(testHealthCheck, 500);
+        });
+    </script>
+</body>
+</html>
