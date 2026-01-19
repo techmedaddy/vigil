@@ -1,7 +1,11 @@
 
 # Vigil
 
-Vigil is a lightweight self-healing and drift-detection system inspired by GitOps and Kubernetes operators. It connects Go-based agents and remediation workers with a FastAPI control plane so metrics, policies, drift detection, and automated fixes can run end-to-end on a laptop, inside Docker, or in a cluster.
+**Backend-Only Monitoring & Self-Healing System**
+
+Vigil is a lightweight self-healing and drift-detection system inspired by GitOps and Kubernetes operators. It provides a pure backend API service connecting Go-based agents and remediation workers with a FastAPI control plane for metrics ingestion, policy evaluation, drift detection, and automated remediation.
+
+> **Note:** Vigil is now a **backend-only** service. All UI/frontend code has been removed. For dashboard and visualization needs, integrate with external frontend solutions (e.g., Google AI Studio, Grafana, custom React/Vue apps, or any HTTP client).
 
 ## Status Note
 
@@ -11,20 +15,24 @@ This repository favors clarity over production-hardening and receives frequent c
 
 ## Features
 
-- End-to-end self-healing loop: agent metrics → policy evaluation → remediation actions → audit trail.
-- GitOps-style drift detection daemon (GitOpsD) that watches manifests and raises actions when desired state diverges.
-- Static HTML dashboard served by the collector for quick visual inspection.
-- YAML-first configuration model with environment variable overrides for every service.
-- Docker Compose stack for local development plus Kubernetes manifests for optional cluster experiments.
-- Failure simulation tooling to exercise remediation paths without touching real workloads.
+- **Pure Backend API:** RESTful endpoints for metrics ingestion, policy management, actions, and queue stats
+- **End-to-end self-healing loop:** agent metrics → policy evaluation → remediation actions → audit trail
+- **GitOps-style drift detection:** GitOpsD daemon watches manifests and raises actions when desired state diverges
+- **Policy Engine:** Configurable threshold-based and custom logic policies with auto-remediation
+- **YAML-first configuration:** Environment variable overrides for every service
+- **Docker Compose stack:** Local development with PostgreSQL/Redis
+- **Kubernetes ready:** K8s manifests for cluster deployment
+- **Failure simulation:** Tooling to exercise remediation paths without touching real workloads
+- **Frontend agnostic:** Integrate with any UI framework or monitoring dashboard via REST API
 
 ## System Overview
 
 ### Collector/API (FastAPI, Python)
 
-- Runs the ingest API, policy evaluation loop, storage adapters, and dashboard routes (`python/app`).
-- Persists telemetry to SQLite for local runs or PostgreSQL/Redis when started via Docker Compose.
-- Emits remediation requests over HTTP and records action history under `/actions`.
+- **Backend-only REST API** running the ingest endpoint, policy evaluation loop, storage adapters, and action management (`python/app`)
+- Persists telemetry to SQLite for local runs or PostgreSQL/Redis when started via Docker Compose
+- Emits remediation requests over HTTP and records action history under `/api/v1/actions`
+- **No built-in UI** - all endpoints return JSON for external frontend integration
 
 ### Agent (Go)
 
@@ -38,12 +46,8 @@ This repository favors clarity over production-hardening and receives frequent c
 
 ### Remediator (Go)
 
-- Implements action handlers (`go/remediator/pkg/actions`) that restart services, patch manifests, or call external APIs.
-- Posts audit results back to the collector, ensuring the control loop can correlate cause and effect.
-
-### Dashboard UI (Static HTML)
-
-- Simple HTML/JS dashboard under `python/app/static/dashboard.html` for quick insight into metrics, drift, and remediation status.
+- Implements action handlers (`go/remediator/pkg/actions`) that restart services, patch manifests, or call external APIs
+- Posts audit results back to the collector, ensuring the control loop can correlate cause and effect
 
 ### Configs Folder (YAML behavior)
 
@@ -73,9 +77,6 @@ This repository favors clarity over production-hardening and receives frequent c
 |        Dashboard UI         |
 | (python/app/static/*.html)  |
 +-------------+---------------+
-
-              |
-              v
 ┌───────────┐   metrics   ┌──────────────────┐   state   ┌─────────────┐
 │ Go Agent  │ ───────────▶│  Collector/API   │ ────────▶│ PostgreSQL* │
 │ (metrics) │             │  FastAPI + eval  │          │   /SQLite   │
@@ -99,10 +100,12 @@ This repository favors clarity over production-hardening and receives frequent c
 └───────────┘               └──────────────────┘
 
 *SQLite is used for local development, PostgreSQL + Redis are provisioned by docker-compose.
-```
 
-## Folder Structure
-
+External Frontend Integration:
+  - Connect to REST API endpoints via HTTP
+  - Build custom dashboards with React, Vue, Angular
+  - Use monitoring tools like Grafana, Google AI Studio
+  - CLI tools can consume JSON responses directly
 ```text
 vigil/
 ├─ docker-compose.yml         # Full local stack (Postgres, Redis, API, agents)
@@ -114,7 +117,7 @@ vigil/
 │  └─ remediator/             # Action registry and remediation server
 ├─ python/
 │  └─ app/                    # FastAPI collector, services, schemas, dashboard
-├─ configs/                   # YAML configs applied to every component
+├─ configs/                   # YAML conbackend API, services, schemas
 ├─ manifests/                 # Desired state, alerts, services for GitOpsD
 ├─ k8s/                       # Optional Kubernetes deployment manifests
 ├─ tools/                     # Helper documentation and utilities
@@ -124,12 +127,12 @@ vigil/
 ## How It Works
 
 1. Agents emit metrics (CPU, latency, synthetic probes) on a configurable interval and POST them to the collector.
-2. The collector stores each metric, enriches context from Redis/PostgreSQL, and evaluates registered policy rules.
-3. Policies decide whether to enqueue remediation requests (restart service, scale replica, notify GitOpsD) or simply record telemetry.
-4. Remediator workers pick up requests, execute Go handlers, and post audit results back to `/actions`.
-5. GitOpsD continuously compares `manifests/` with real state (or simulated drift) and files actions whenever divergence is detected.
-6. The dashboard UI and API endpoints expose current metrics, action history, and drift summaries for humans or tooling.
-
+2. **Agents emit metrics** (CPU, latency, synthetic probes) on a configurable interval and POST them to the collector at `/api/v1/ingest`
+2. **Collector stores and evaluates** each metric, enriches context from Redis/PostgreSQL, and evaluates registered policy rules
+3. **Policies trigger actions** - decide whether to enqueue remediation requests (restart service, scale replica) or simply record telemetry
+4. **Remediator executes** - workers pick up requests, execute Go handlers, and post audit results back to `/api/v1/actions`
+5. **GitOpsD detects drift** - continuously compares `manifests/` with real state and files actions whenever divergence is detected
+6. **External frontends consume** - REST API endpoints expose current metrics, action history, and drift summaries as JSON for external dashboards and tools
 ## Tech Stack
 
 | Layer                | Technology |
@@ -138,8 +141,8 @@ vigil/
 | Agents & Remediator  | Go 1.23+, standard library HTTP, pluggable packages |
 | Drift Detection      | Go GitOpsD service with filesystem/Git walkers |
 | Storage              | SQLite (local), PostgreSQL + Redis (compose) |
-| UI                   | Static HTML/JS assets served from FastAPI |
 | Packaging            | Docker Compose, Kubernetes manifests |
+| Frontend             | **None (bring your own)** - REST API only |
 
 ## Getting Started
 
@@ -207,29 +210,63 @@ Any value defined in `configs/*.yaml` can be overridden by exporting the corresp
 
 ## API Overview
 
+**Backend REST API Endpoints:**
+
 ```http
-POST /ingest
+# Metrics Ingestion
+POST /api/v1/ingest
 Content-Type: application/json
 {
   "name": "cpu_usage",
   "value": 0.82,
-  "tags": {"service": "web"}
+  "tags": {"service": "web"},
+  "timestamp": "2026-01-19T12:00:00Z"
 }
 
-POST /actions
-Content-Type: application/json
-{
-  "target": "web",
-  "action": "restart",
-  "status": "succeeded",
-  "detail": "process restarted"
-}
+# Actions Management
+POST /api/v1/actions
+GET /api/v1/actions
+GET /api/v1/actions/{action_id}
 
-GET /query
-→ [{"name": "cpu_usage", "value": 0.42, "ts": "2025-11-16T12:01:05Z"}]
+# Policy Management
+GET /api/v1/policies
+POST /api/v1/policies
+PUT /api/v1/policies/{name}
+DELETE /api/v1/policies/{name}
+POST /api/v1/policies/evaluate
+POST /api/v1/policies/reload
+
+# Queue Stats
+GET /api/v1/queue/stats
+
+# Health Check
+GET /health
+
+# Prometheus Metrics
+GET /metrics
 ```
 
-Additional routers under `python/app/routes/` expose UI assets, health probes, and GitOps events. FastAPI automatically publishes OpenAPI docs at `/docs` and `/redoc`.
+**OpenAPI Documentation:**
+- Interactive API docs available at `http://localhost:8000/docs`
+- ReDoc format at `http://localhost:8000/redoc`
+
+**Frontend Integration Examples:**
+```javascript
+// Fetch recent metrics
+const response = await fetch('http://localhost:8000/api/v1/ingest');
+const data = await response.json();
+
+// Create a policy
+await fetch('http://localhost:8000/api/v1/policies', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: 'high-cpu',
+    condition: { type: 'metric_exceeds', metric: 'cpu_percent', threshold: 90 },
+    action: 'scale-up'
+  })
+});
+```
 
 ## Simulating Failures
 
@@ -248,10 +285,12 @@ python simulate_failures.py --burst 5 --drift manifests/services/web.service.yam
 
 ## Roadmap
 
-- Harden policy evaluation with historical windows, anomaly detection, and pluggable scoring adapters.
-- Expand GitOpsD to support additional source types (Helm, Kustomize) and signed commits.
-- Add authentication, TLS, and RBAC for multi-team scenarios.
-- Ship richer dashboard widgets (trend charts, remediation timelines) and WebSocket streaming.
-- Provide Helm charts and Terraform modules for production-style deployments.
+- **Backend API enhancements:** Historical windows, anomaly detection, pluggable scoring adapters
+- **GitOpsD expansion:** Support Helm, Kustomize, and signed commits
+- **Security:** Authentication, TLS, RBAC for multi-team scenarios
+- **Monitoring integration:** Native Prometheus exporters, OpenTelemetry support
+- **Deployment tools:** Helm charts and Terraform modules for production
+
+**Note:** Dashboard/UI features have been removed. Frontend integration is expected via external tools (Grafana, custom React/Vue apps, Google AI Studio, etc.)
 
 

@@ -21,7 +21,6 @@ from app.core.middleware import register_middleware
 from app.core.tasks import start_all_background_tasks, cancel_all_background_tasks
 from app.api.v1.ingest import router as ingest_router
 from app.api.v1.actions import router as actions_router
-from app.api.v1.ui import router as ui_router, mount_static_files
 
 
 # Import policies router if available
@@ -189,9 +188,6 @@ app.add_middleware(
 # --- Register Custom Middleware ---
 register_middleware(app)
 
-# --- Mount Static Files ---
-mount_static_files(app)
-
 # --- Health Check Endpoint ---
 @app.get("/health", include_in_schema=False)
 async def root_health_check():
@@ -220,12 +216,11 @@ if metrics_available and settings.METRICS_ENABLED:
 # --- Include Routers ---
 app.include_router(ingest_router, prefix="/api/v1")
 app.include_router(actions_router, prefix="/api/v1")
-app.include_router(ui_router, prefix="/api/v1")
 
 if policies_router_available:
     app.include_router(policies_router, prefix="/api/v1")
 
-routers_list = ["ingest", "actions", "ui", "policies"] if policies_router_available else ["ingest", "actions", "ui"]
+routers_list = ["ingest", "actions", "policies"] if policies_router_available else ["ingest", "actions"]
 logger.info(
     f"Application initialized with routers: {', '.join(routers_list)} | background tasks: agent, gitopsd"
 )

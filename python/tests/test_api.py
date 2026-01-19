@@ -1,12 +1,14 @@
 """
-API tests for Vigil monitoring system.
+API tests for Vigil monitoring system (Backend-Only).
 
 Tests cover:
 - Metrics ingestion endpoint (/ingest)
 - Metrics query endpoint (/query)
 - Action management endpoints (/actions)
-- Dashboard UI endpoint (/ui/dashboard)
+- Policy management endpoints (/policies)
+- Queue stats endpoint (/queue/stats)
 
+Note: UI/dashboard tests removed as Vigil is now backend-only.
 Uses pytest with async support and in-memory SQLite database for testing.
 """
 
@@ -407,57 +409,6 @@ class TestActionsEndpoint:
         assert data["status"] == "ok"
         
         logger.info("✓ Actions health check test passed")
-
-
-# --- Tests for /ui/dashboard endpoint ---
-
-class TestUIEndpoint:
-    """Tests for UI dashboard endpoint."""
-    
-    async def test_dashboard_returns_html(self, client: httpx.AsyncClient):
-        """Test that dashboard endpoint returns HTML."""
-        logger.info("Testing dashboard returns HTML")
-        
-        response = await client.get("/api/v1/ui/dashboard")
-        
-        logger.debug(f"Response status: {response.status_code}")
-        assert response.status_code == 200
-        
-        # Check response is HTML
-        assert "text/html" in response.headers.get("content-type", "")
-        
-        # Check for basic HTML structure
-        content = response.text
-        assert "<!DOCTYPE html>" in content or "<html" in content
-        assert "Vigil" in content
-        
-        logger.info("✓ Dashboard HTML test passed")
-    
-    async def test_dashboard_contains_title(self, client: httpx.AsyncClient):
-        """Test that dashboard contains expected title."""
-        logger.info("Testing dashboard contains title")
-        
-        response = await client.get("/api/v1/ui/dashboard")
-        
-        assert response.status_code == 200
-        content = response.text
-        assert "Vigil" in content or "Dashboard" in content or "Monitoring" in content
-        
-        logger.info("✓ Dashboard title test passed")
-    
-    async def test_ui_health_check(self, client: httpx.AsyncClient):
-        """Test UI health check endpoint."""
-        logger.info("Testing UI health check")
-        
-        response = await client.get("/api/v1/ui/health")
-        
-        logger.debug(f"Response status: {response.status_code}")
-        assert response.status_code == 200
-        
-        data = response.json()
-        assert data["status"] == "ok"
-        
-        logger.info("✓ UI health check test passed")
 
 
 # --- Integration tests ---
