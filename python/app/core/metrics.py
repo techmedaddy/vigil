@@ -8,7 +8,7 @@ Provides metrics for:
 - Configurable via core/config.py
 """
 
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST, CollectorRegistry
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST, CollectorRegistry
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -43,6 +43,34 @@ policy_evaluation_total = Counter(
     name="policy_evaluation_total",
     documentation="Total policy evaluations performed",
     labelnames=["policy_name", "result"],
+    registry=_registry,
+)
+
+worker_tasks_total = Counter(
+    name="worker_tasks_total",
+    documentation="Total tasks processed by remediation worker",
+    labelnames=["status"],  # completed, failed
+    registry=_registry,
+)
+
+queue_operations_total = Counter(
+    name="queue_operations_total",
+    documentation="Total queue operations performed",
+    labelnames=["operation"],  # enqueue, dequeue
+    registry=_registry,
+)
+
+# --- Gauges ---
+
+queue_length = Gauge(
+    name="queue_length",
+    documentation="Current number of tasks in remediation queue",
+    registry=_registry,
+)
+
+worker_active = Gauge(
+    name="worker_active",
+    documentation="Worker active status (1 = running, 0 = stopped)",
     registry=_registry,
 )
 
@@ -159,6 +187,70 @@ def record_policy_evaluation(policy_name: str, result: str) -> None:
         logger.error(
             "Failed to record policy evaluation metrics",
             extra={"policy_name": policy_name, "result": result, "error": str(e)}
+        )
+
+
+def record_worker_task(status: str) -> None:
+    """
+    Record worker task processing event.
+
+    Args:
+        status: Task processing status ('completed', 'failed')
+    """
+    try:
+        worker_tasks_total.labels(status=status).inc()
+    except Exception as e:
+        logger.error(
+            "Failed to record worker task metrics",
+            extra={"status": status, "error": str(e)}
+        )
+
+
+def record_queue_operation(operation: str) -> None:
+    """
+    Record queue operation event.
+
+    Args:
+        operation: Operation type ('enqueue', 'dequeue')
+    """
+    try:
+        queue_operations_total.labels(operation=operation).inc()
+    except Exception as e:
+        logger.error(
+            "Failed to record queue operation metrics",
+            extra={"operation": operation, "error": str(e)}
+        )
+
+
+def update_queue_length(length: int) -> None:
+    """
+    Update current queue length gauge.
+
+    Args:
+        length: Current number of tasks in queue
+    """
+    try:
+        queue_length.set(length)
+    except Exception as e:
+        logger.error(
+            "Failed to update queue length metric",
+            extra={"length": length, "error": str(e)}
+        )
+
+
+def set_worker_active(active: bool) -> None:
+    """
+    Set worker active status.
+
+    Args:
+        active: True if worker is running, False otherwise
+    """
+    try:
+        worker_active.set(1 if active else 0)
+    except Exception as e:
+        logger.error(
+            "Failed to set worker active metric",
+            extra={"active": active, "error": str(e)}
         )
 
 

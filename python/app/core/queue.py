@@ -92,6 +92,14 @@ class QueueClient:
             # Update stats
             self._increment_stat("tasks_enqueued")
             
+            # Update Prometheus metrics
+            try:
+                from app.core.metrics import record_queue_operation, update_queue_length
+                record_queue_operation("enqueue")
+                update_queue_length(self.get_queue_length())
+            except ImportError:
+                pass  # Metrics module not available
+            
             logger.info(
                 "Task enqueued",
                 extra={
@@ -158,6 +166,14 @@ class QueueClient:
             # Update stats
             self._increment_stat("tasks_dequeued")
             self._set_last_processed(payload)
+            
+            # Update Prometheus metrics
+            try:
+                from app.core.metrics import record_queue_operation, update_queue_length
+                record_queue_operation("dequeue")
+                update_queue_length(self.get_queue_length())
+            except ImportError:
+                pass  # Metrics module not available
             
             logger.info(
                 "Task dequeued",

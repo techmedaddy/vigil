@@ -37,6 +37,13 @@ class RemediationWorker:
         self.running = True
         self.started_at = datetime.utcnow()
         
+        # Set worker active metric
+        try:
+            from app.core.metrics import set_worker_active
+            set_worker_active(True)
+        except ImportError:
+            pass
+        
         logger.info(
             "Remediation worker starting",
             extra={
@@ -66,6 +73,13 @@ class RemediationWorker:
     async def stop(self):
         """Stop the worker gracefully."""
         self.running = False
+        
+        # Set worker inactive metric
+        try:
+            from app.core.metrics import set_worker_active
+            set_worker_active(False)
+        except ImportError:
+            pass
         
         logger.info(
             "Remediation worker stopping",
@@ -146,6 +160,13 @@ class RemediationWorker:
                 self.tasks_processed += 1
                 self.queue_client.increment_completed()
                 
+                # Record Prometheus metric
+                try:
+                    from app.core.metrics import record_worker_task
+                    record_worker_task("completed")
+                except ImportError:
+                    pass
+                
                 # Update action status in database
                 await self._update_action_status(action_id, "completed", request_id)
                 
@@ -162,8 +183,22 @@ class RemediationWorker:
                 self.tasks_failed += 1
                 self.queue_client.increment_failed()
                 
+                # Record Prometheus metric
+                try:
+                    from app.core.metrics import record_worker_task
+                    record_worker_task("failed")
+                except ImportError:
+                    pass
+                
                 # Update action status to failed
                 await self._update_action_status(action_id, "failed", request_id)
+                
+                # Record Prometheus metric
+                try:
+                    from app.core.metrics import record_worker_task
+                    record_worker_task("failed")
+                except ImportError:
+                    pass
                 
                 logger.error(
                     "Task processing failed",
@@ -178,6 +213,13 @@ class RemediationWorker:
         except Exception as e:
             self.tasks_failed += 1
             self.queue_client.increment_failed()
+            
+            # Record Prometheus metric
+            try:
+                from app.core.metrics import record_worker_task
+                record_worker_task("failed")
+            except ImportError:
+                pass
             
             logger.error(
                 "Exception processing task",
