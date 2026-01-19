@@ -1,316 +1,301 @@
+# Vigil Monitoring System
 
-# Vigil
+> A backend-first, self-healing control plane that keeps services healthy by watching metrics, evaluating policies, and triggering automated remediation.
 
-**Backend-Only Monitoring & Self-Healing System**
+---
 
-Vigil is a lightweight self-healing and drift-detection system inspired by GitOps and Kubernetes operators. It provides a pure backend API service connecting Go-based agents and remediation workers with a FastAPI control plane for metrics ingestion, policy evaluation, drift detection, and automated remediation.
+## 📌 Project Overview
 
-> **Note:** Vigil is now a **backend-only** service. All UI/frontend code has been removed. For dashboard and visualization needs, integrate with external frontend solutions (e.g., Google AI Studio, Grafana, custom React/Vue apps, or any HTTP client).
+Vigil is a lightweight monitoring and automation service. It receives metrics and events, decides whether something is wrong, and if needed, kicks off remediation tasks. Operators use Vigil to keep applications stable without watching dashboards all day. The project focuses on a clear, reliable backend that any frontend or automation pipeline can integrate with.
 
-## Status Note
+Why Vigil matters:
+- Reduces manual intervention by responding to incidents automatically.
+- Creates a shared source of truth for health signals, policies, and actions.
+- Fits easily into existing stacks thanks to a clean REST API and simple deployment.
 
-> Vigil started as a personal learning experiment for self-healing infrastructure and is now evolving into a more capable, modular project. It is still actively being worked on.
+---
 
-This repository favors clarity over production-hardening and receives frequent changes while the core architecture evolves.
+## ✨ Core Features
 
-## Features
+| Area | What It Does |
+|------|--------------|
+| Metrics Ingestion | Accepts structured metrics or events from agents and services. |
+| Policy Engine | Evaluates metrics against human-friendly rules to spot issues early. |
+| Action Management | Tracks remediation actions with full history and status updates. |
+| Queue & Worker | Uses Redis-backed queue and async workers to process tasks safely. |
+| Remediator Integration | Talks to remediator services to execute real changes. |
+| Simulator | Generates synthetic load to test Vigil end-to-end. |
+| Audit & Logging | Captures everything for later review, including Prometheus metrics. |
 
-- **Pure Backend API:** RESTful endpoints for metrics ingestion, policy management, actions, and queue stats
-- **End-to-end self-healing loop:** agent metrics → policy evaluation → remediation actions → audit trail
-- **GitOps-style drift detection:** GitOpsD daemon watches manifests and raises actions when desired state diverges
-- **Policy Engine:** Configurable threshold-based and custom logic policies with auto-remediation
-- **YAML-first configuration:** Environment variable overrides for every service
-- **Docker Compose stack:** Local development with PostgreSQL/Redis
-- **Kubernetes ready:** K8s manifests for cluster deployment
-- **Failure simulation:** Tooling to exercise remediation paths without touching real workloads
-- **Frontend agnostic:** Integrate with any UI framework or monitoring dashboard via REST API
+---
 
-## System Overview
+## 🧭 Architecture at a Glance
 
-### Collector/API (FastAPI, Python)
-
-- **Backend-only REST API** running the ingest endpoint, policy evaluation loop, storage adapters, and action management (`python/app`)
-- Persists telemetry to SQLite for local runs or PostgreSQL/Redis when started via Docker Compose
-- Emits remediation requests over HTTP and records action history under `/api/v1/actions`
-- **No built-in UI** - all endpoints return JSON for external frontend integration
-
-### Agent (Go)
-
-- Configured via `configs/agent.yaml` to emit metrics (CPU, HTTP checks, or custom collectors) every interval to the collector.
-- Lives under `go/agent` with a small scheduler and pluggable metric sources.
-
-### GitOps Drift Detector (Go)
-
-- Watches the `manifests/` directory (and any Git working tree you mount) for desired state definitions.
-- Detects drift by comparing manifests with live cluster signals and files action requests through the collector.
-
-### Remediator (Go)
-
-- Implements action handlers (`go/remediator/pkg/actions`) that restart services, patch manifests, or call external APIs
-- Posts audit results back to the collector, ensuring the control loop can correlate cause and effect
-
-### Configs Folder (YAML behavior)
-
-- `configs/*.yaml` capture every service’s defaults (ports, polling intervals, downstream URLs). These files are mounted into containers and can be overridden via environment variables.
-
-### Manifests Folder (desired state)
-
-- `manifests/` holds example services, alerts, and policies. GitOpsD treats it as the canonical desired state for drift detection demos.
-
-### Tools & Simulation Scripts
-
-- `simulate_failures.py` injects synthetic anomalies so you can observe end-to-end remediation.
-- Additional helper docs live under `tools/`.
-
-### Docker Compose Workflow
-
-- `docker-compose.yml` bootstraps PostgreSQL, Redis, the FastAPI collector, GitOpsD, the Go agent, and the remediator in one command for a realistic multi-service demo.
-
-### Kubernetes Manifests (optional)
-
-- `k8s/` contains deployment specs for running the collector, agent, GitOpsD, and remediator inside a cluster. They are reference-grade and meant for experimentation, not production.
-
-## Architecture Diagram
-
-```text
-+-----------------------------+
-|        Dashboard UI         |
-| (python/app/static/*.html)  |
-+-------------+---------------+
-┌───────────┐   metrics   ┌──────────────────┐   state   ┌─────────────┐
-│ Go Agent  │ ───────────▶│  Collector/API   │ ────────▶│ PostgreSQL* │
-│ (metrics) │             │  FastAPI + eval  │          │   /SQLite   │
-└───────────┘             └─────────┬────────┘          └─────────────┘
-                                     │
-                                     │ remediation requests
-                                     v
-                            ┌──────────────────┐
-                            │   Remediator     │
-                            │  (Go handlers)   │
-                            └─────────┬────────┘
-                                     │ audits
-                                     v
-                            ┌──────────────────┐
-                            │   /actions API   │
-                            └──────────────────┘
-
-┌───────────┐   manifests   ┌──────────────────┐
-│ GitOpsD   │──────────────▶│ Collector /actions│
-│ (drift)   │◀──────────────┤ Redis* (events)   │
-└───────────┘               └──────────────────┘
-
-*SQLite is used for local development, PostgreSQL + Redis are provisioned by docker-compose.
-
-External Frontend Integration:
-  - Connect to REST API endpoints via HTTP
-  - Build custom dashboards with React, Vue, Angular
-  - Use monitoring tools like Grafana, Google AI Studio
-  - CLI tools can consume JSON responses directly
-```text
-vigil/
-├─ docker-compose.yml         # Full local stack (Postgres, Redis, API, agents)
-├─ README.md                  # This guide
-├─ docs/                      # Detailed architecture, config, and extending guides
-├─ go/
-│  ├─ agent/                  # Metric collectors and CLI entrypoint
-│  ├─ gitopsd/                # Drift detector daemon and helpers
-│  └─ remediator/             # Action registry and remediation server
-├─ python/
-│  └─ app/                    # FastAPI collector, services, schemas, dashboard
-├─ configs/                   # YAML conbackend API, services, schemas
-├─ manifests/                 # Desired state, alerts, services for GitOpsD
-├─ k8s/                       # Optional Kubernetes deployment manifests
-├─ tools/                     # Helper documentation and utilities
-└─ simulate_failures.py       # Fault-injection script for local testing
+```mermaid
+flowchart LR
+    Agents((Agents & Services)) -->|Metrics / Events| API[FastAPI Collector]
+    API -->|Evaluate| Policy[Policy Engine]
+    Policy -->|Violations| Queue[(Redis Queue)]
+    Queue --> Worker[Async Worker]
+    Worker --> Remediator[Go Remediator]
+    Remediator -->|Results| ActionsDB[(Actions Store)]
+    API -->|Audit Trail| Logs[(Structured Logs / Metrics)]
+    API -->|Expose| Endpoints[/REST API/]
 ```
 
-## How It Works
+- **FastAPI Collector** handles requests, validation, and routing.
+- **Policy Engine** decides whether metrics break thresholds.
+- **Redis Queue + Worker** ensure remediation happens in order and can retry.
+- **Remediator** performs the actual fix (restart service, scale replicas, etc.).
+- **Audit Trail** keeps record of what happened for observability.
 
-1. Agents emit metrics (CPU, latency, synthetic probes) on a configurable interval and POST them to the collector.
-2. **Agents emit metrics** (CPU, latency, synthetic probes) on a configurable interval and POST them to the collector at `/api/v1/ingest`
-2. **Collector stores and evaluates** each metric, enriches context from Redis/PostgreSQL, and evaluates registered policy rules
-3. **Policies trigger actions** - decide whether to enqueue remediation requests (restart service, scale replica) or simply record telemetry
-4. **Remediator executes** - workers pick up requests, execute Go handlers, and post audit results back to `/api/v1/actions`
-5. **GitOpsD detects drift** - continuously compares `manifests/` with real state and files actions whenever divergence is detected
-6. **External frontends consume** - REST API endpoints expose current metrics, action history, and drift summaries as JSON for external dashboards and tools
-## Tech Stack
+---
 
-| Layer                | Technology |
-|----------------------|------------|
-| Collector/API        | Python 3.12, FastAPI, Uvicorn, SQLAlchemy |
-| Agents & Remediator  | Go 1.23+, standard library HTTP, pluggable packages |
-| Drift Detection      | Go GitOpsD service with filesystem/Git walkers |
-| Storage              | SQLite (local), PostgreSQL + Redis (compose) |
-| Packaging            | Docker Compose, Kubernetes manifests |
-| Frontend             | **None (bring your own)** - REST API only |
+## 🔄 Data Flow
 
-## Getting Started
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant API
+    participant Policy
+    participant Queue
+    participant Worker
+    participant Remediator
+    participant History
+
+    Agent->>API: POST /api/v1/ingest (metric)
+    API->>Policy: Evaluate metric
+    alt Policy match
+        Policy-->>API: Violation list
+        API->>Queue: Enqueue remediation task
+        Queue->>Worker: Deliver task (BLPOP)
+        Worker->>Remediator: Execute action request
+        Remediator-->>Worker: Result (success / failure)
+        Worker->>History: Update action status
+    else No match
+        Policy-->>API: No violations
+    end
+    API-->>Agent: Response (stored, violations, actions)
+```
+
+- Metrics arrive through the ingest endpoint.
+- Policies run immediately and also on a scheduled background runner.
+- Remediation tasks join the queue and workers process them.
+- Actions, statuses, and logs become available for dashboards or audits.
+
+---
+
+## ⚙️ Queue & Worker Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Waiting
+    Waiting --> Enqueuing: Policy violation detected
+    Enqueuing --> Pending
+    Pending --> Processing: Worker reserves task
+    Processing --> Completed: Remediator success
+    Processing --> Failed: Remediator error
+    Failed --> Pending: Retry with backoff
+    Completed --> Audited: Status stored + metrics updated
+    Audited --> [*]
+```
+
+- **Pending** tasks stay in Redis until a worker grabs them.
+- **Processing** includes calling the remediator and updating the action record.
+- **Failed** tasks record the error and can retry.
+- **Completed** tasks feed Prometheus counters, logs, and history endpoints.
+
+---
+
+## 🚀 Getting Started (Backend Only)
 
 ### Prerequisites
+- Python 3.12+
+- Redis (local or Docker)
+- Optional: PostgreSQL (SQLite works by default)
 
-- Go 1.23 or newer
-- Python 3.12 or newer with `pip`
-- Docker Desktop (for Compose workflow)
-- kubectl + a cluster (optional, for `k8s/` manifests)
-
-### Clone the repository
-
-```powershell
+### 1. Clone the repository
+```bash
 git clone https://github.com/techmedaddy/vigil.git
 cd vigil
 ```
 
-### Option A — Run everything with Docker Compose
-
-```powershell
-docker compose up --build
-```
-
-The command launches PostgreSQL, Redis, the FastAPI API, GitOpsD, the Go agent, and the remediator. Logs stream in the terminal, and the collector becomes available at `http://localhost:8000`.
-
-### Option B — Run services manually
-
-```powershell
-# In one terminal (collector)
+### 2. Set up the backend
+```bash
 cd python/app
+python -m venv .venv
+source .venv/bin/activate
 pip install -r ../requirements.txt
+```
+
+### 3. Configure environment (optional)
+```bash
+cp ../.env.example ../.env
+# adjust DATABASE_URL, REDIS_URL, CORS_ORIGINS as needed
+```
+
+### 4. Start Vigil API
+```bash
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-
-# In a second terminal (remediator)
-cd go/remediator/cmd/remediator
-go run .
-
-# In a third terminal (agent)
-cd go/agent/cmd/agent
-go run .
-
-# Optional GitOpsD
-cd go/gitopsd/cmd/gitopsd
-go run .
 ```
 
-### Option C — Connect with External Frontend
-
-The backend API is CORS-enabled and accepts requests from:
-- `http://localhost:3000` (default for React, Next.js)
-- `http://localhost:5173` (default for Vite)
-
-**Quick Start:**
-1. Start the backend: `uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload`
-2. Start your frontend: `npm run dev` (on port 3000)
-3. Frontend makes API calls to `http://localhost:8000/api/v1/*`
-
-**Example fetch from frontend:**
-```javascript
-// Fetch recent actions
-const response = await fetch('http://localhost:8000/api/v1/actions?limit=10');
-const data = await response.json();
-console.log(data.actions);
+### 5. Verify health
+```bash
+curl http://localhost:8000/health
+```
+Expected:
+```json
+{"status": "healthy", "service": "vigil"}
 ```
 
-See [GOOGLE_AI_STUDIO_FRONTEND_PROMPT.md](GOOGLE_AI_STUDIO_FRONTEND_PROMPT.md) for complete frontend integration guide.
+You now have the backend running. Connect any frontend (React, Vite, Google AI Studio, etc.) to `http://localhost:8000`.
 
-### Environment Variables
+---
 
-| Variable            | Default (YAML)                            | Purpose |
-|--------------------|-------------------------------------------|---------|
-| `DATABASE_URL`     | `sqlite:///python/app/vigil.db` or Compose Postgres URI | Controls the collector’s persistence backend. |
-| `REDIS_URL`        | `redis://127.0.0.1:6379/0` (Compose overrides) | Used for pub/sub style evaluation contexts. |
-| `COLLECTOR_PORT`   | `8000`                                    | Port exposed by FastAPI. || `CORS_ORIGINS`     | `http://localhost:3000,http://localhost:5173` | Allowed frontend origins for CORS (comma-separated). || `REMEDIATOR_URL`   | `http://127.0.0.1:8081/remediate`         | Where the collector posts remediation actions. |
-| `AGENT_INTERVAL`   | `10` seconds                              | Metric publishing cadence per `configs/agent.yaml`. |
-| `GITOPSD_INTERVAL` | `15` seconds                              | Drift polling cadence per `configs/gitopsd.yaml`. |
-| `CONFIG_PATH`      | `configs/*.yaml`                          | Path mounted into API/agents; override to switch profiles. |
+## 🧪 Key API Endpoints
 
-Any value defined in `configs/*.yaml` can be overridden by exporting the corresponding environment variable before starting a service or Compose stack.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/ingest` | POST | Store metrics/events and trigger policy evaluation. |
+| `/api/v1/actions` | GET | List actions with status, pagination ready. |
+| `/api/v1/actions/{id}` | GET | Retrieve action details. |
+| `/api/v1/actions/status/{status}` | GET | Filter actions (pending, running, completed, failed, cancelled). |
+| `/api/v1/policies` | GET | List all policies and settings. |
+| `/api/v1/policies` | POST | Create new policy with condition and action. |
+| `/api/v1/policies/{name}` | PUT | Update policy metadata and toggles. |
+| `/api/v1/policies/{name}` | DELETE | Remove a policy. |
+| `/api/v1/policies/evaluate` | POST | Test policies against sample metrics. |
+| `/api/v1/policies/runner/status` | GET | Check background policy runner health. |
+| `/api/v1/ui/queue/stats` | GET | (To be moved) Queue depth, processed counts, failure totals. |
+| `/api/v1/ui/simulator/*` | POST/GET | (To be moved) Start/stop simulator and view status. |
+| `/metrics` | GET | Prometheus metrics scrape endpoint. |
+| `/health` | GET | Simple service liveness check. |
 
-## Configuration
-
-- Centralized configuration details, schema references, and override patterns live in [`docs/CONFIG.md`](docs/CONFIG.md).
-- Sample YAML files in `configs/` demonstrate sane defaults for local testing. Copy them and adjust intervals, endpoint URLs, and feature flags as needed.
-
-## API Overview
-
-**Backend REST API Endpoints:**
-
-```http
-# Metrics Ingestion
-POST /api/v1/ingest
-Content-Type: application/json
+### Example: Ingest Metric
+```bash
+curl -X POST http://localhost:8000/api/v1/ingest \
+  -H "Content-Type: application/json" \
+  -d '{
+        "name": "cpu_usage",
+        "value": 87.5,
+        "tags": {"host": "web-01", "region": "us-east-1"}
+      }'
+```
+Response:
+```json
 {
-  "name": "cpu_usage",
-  "value": 0.82,
-  "tags": {"service": "web"},
-  "timestamp": "2026-01-19T12:00:00Z"
+  "ok": true,
+  "metric_id": 12345,
+  "status": "stored",
+  "policies_evaluated": true,
+  "violations": [
+    {
+      "policy_name": "high-cpu-alert",
+      "severity": "warning",
+      "action": "scale-up"
+    }
+  ]
 }
-
-# Actions Management
-POST /api/v1/actions
-GET /api/v1/actions
-GET /api/v1/actions/{action_id}
-
-# Policy Management
-GET /api/v1/policies
-POST /api/v1/policies
-PUT /api/v1/policies/{name}
-DELETE /api/v1/policies/{name}
-POST /api/v1/policies/evaluate
-POST /api/v1/policies/reload
-
-# Queue Stats
-GET /api/v1/queue/stats
-
-# Health Check
-GET /health
-
-# Prometheus Metrics
-GET /metrics
 ```
 
-**OpenAPI Documentation:**
-- Interactive API docs available at `http://localhost:8000/docs`
-- ReDoc format at `http://localhost:8000/redoc`
-
-**Frontend Integration Examples:**
-```javascript
-// Fetch recent metrics
-const response = await fetch('http://localhost:8000/api/v1/ingest');
-const data = await response.json();
-
-// Create a policy
-await fetch('http://localhost:8000/api/v1/policies', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    name: 'high-cpu',
-    condition: { type: 'metric_exceeds', metric: 'cpu_percent', threshold: 90 },
-    action: 'scale-up'
-  })
-});
+### Example: Queue Stats
+```bash
+curl http://localhost:8000/api/v1/ui/queue/stats
+```
+Response:
+```json
+{
+  "queue_length": 2,
+  "tasks_enqueued": 158,
+  "tasks_dequeued": 156,
+  "tasks_failed": 3,
+  "tasks_completed": 153,
+  "last_processed_task": {
+    "task_id": "task_1706956800",
+    "action_id": 456,
+    "target": "web-service-01",
+    "timestamp": "2026-01-19T12:00:00Z"
+  }
+}
 ```
 
-## Simulating Failures
-
-- Run `simulate_failures.py` from the project root to push high CPU metrics, inject artificial drift events, and watch remediation kicks in.
-
-```powershell
-python simulate_failures.py --burst 5 --drift manifests/services/web.service.yaml
+### Example: Policy Management
+```bash
+curl -X POST http://localhost:8000/api/v1/policies \
+  -H "Content-Type: application/json" \
+  -d '{
+        "name": "high-cpu-alert",
+        "description": "Scale up when CPU exceeds 90%",
+        "severity": "warning",
+        "target": "web-*",
+        "enabled": true,
+        "auto_remediate": true,
+        "condition": {
+          "type": "metric_exceeds",
+          "metric": "cpu_percent",
+          "threshold": 90
+        },
+        "action": "scale-up",
+        "params": {"replicas": 2}
+      }'
 ```
 
-- Use the script in tandem with the dashboard or `/query` endpoint to verify the full loop.
+---
 
-## Extending Vigil
+## 🧑‍💻 Usage Walkthrough
 
-- A dedicated guide in [`docs/EXTENDING.md`](docs/EXTENDING.md) covers adding metric collectors, authoring policies, creating remediation handlers, building dashboards, and embedding Vigil components into other systems.
-- Follow the repo conventions: Go services live under `go/<service>`, FastAPI modules under `python/app`, and configuration defaults under `configs/`.
+1. **Send Metrics**: Agents post CPU, memory, HTTP response times, and custom signals to `/api/v1/ingest`.
+2. **Evaluate Policies**: Policies flag abnormal values (e.g., CPU > 90%) and decide whether to remediate automatically.
+3. **Queue Tasks**: Violations enqueue remediation tasks into Redis.
+4. **Worker Executes**: Background worker dequeues tasks and calls the remediator service.
+5. **Remediator Acts**: Remediator restarts services, scales deployments, or triggers custom handlers.
+6. **Review Actions**: Operators check `/api/v1/actions` to see what happened and when.
+7. **Observe Metrics**: Prometheus scrapes `/metrics` for dashboards and alerting.
 
-## Roadmap
+---
 
-- **Backend API enhancements:** Historical windows, anomaly detection, pluggable scoring adapters
-- **GitOpsD expansion:** Support Helm, Kustomize, and signed commits
-- **Security:** Authentication, TLS, RBAC for multi-team scenarios
-- **Monitoring integration:** Native Prometheus exporters, OpenTelemetry support
-- **Deployment tools:** Helm charts and Terraform modules for production
+## 📊 Observability & Monitoring
 
-**Note:** Dashboard/UI features have been removed. Frontend integration is expected via external tools (Grafana, custom React/Vue apps, Google AI Studio, etc.)
+| Channel | What You Get | Tools |
+|---------|--------------|-------|
+| Structured Logs | JSON logs for every request, policy evaluation, and task. | Log aggregation services, jq |
+| Prometheus Metrics | Custom counters and gauges for ingest, queue depth, policy violations, and worker state. | Prometheus, Grafana |
+| Queue Stats Endpoint | Live queue health, successes, failures, last task info. | Custom dashboards, frontend integration |
+| Action History | Detailed status for each remediation, including timestamps and outcome. | REST clients, automation |
 
+Suggested setup:
+- Scrape `/metrics` with Prometheus.
+- Forward logs into ELK / Loki / any preferred stack.
+- Build dashboards in Grafana or Google AI Studio using the REST API.
+
+---
+
+## 🎬 Demo Story: "Scale Up the Web Tier"
+
+1. Web service load increases, CPU hits 92%.
+2. Agent posts `cpu_usage=92` to Vigil.
+3. Policy `high-cpu-alert` detects threshold breach and enqueues `scale-up` action.
+4. Worker picks task and asks Remediator to scale the deployment to 4 replicas.
+5. Remediator succeeds and reports back.
+6. Actions API shows `status=completed` with timestamps and notes.
+7. Prometheus metric `vigil_policy_violations_total{policy_name="high-cpu-alert"}` increments.
+8. Operator sees the successful action and lower CPU usage on their dashboard minutes later.
+
+---
+
+## 🛣️ Future Roadmap
+
+| Area | Planned Enhancements |
+|------|----------------------|
+| Remediation Plugins | Pluggable actions for Kubernetes, cloud APIs, serverless, and custom scripts. |
+| External Hooks | Webhooks and message bus integrations for Slack, PagerDuty, Kafka, and event-driven workflows. |
+| Scaling | Horizontal sharding of queue workers, multi-region Redis support, and policy evaluation batching. |
+| Security | Authentication, RBAC roles, signed policy bundles, and TLS-by-default deployments. |
+| Analytics | Richer reporting with anomaly detection, historical policy impact, and trend analysis. |
+
+---
+
+## �� Credits
+
+- **Core Engineering**: @techmedaddy
 
