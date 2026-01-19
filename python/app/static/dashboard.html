@@ -776,6 +776,109 @@
             margin-top: 12px;
             margin-bottom: 8px;
         }
+        
+        /* Simulator Controls */
+        .simulator-controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .control-group {
+            margin-bottom: 12px;
+        }
+        
+        .control-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .control-group input,
+        .control-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
+        
+        .simulator-status {
+            margin-top: 15px;
+        }
+        
+        .sim-metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .sim-metric {
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .sim-metric-label {
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .sim-metric-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -821,6 +924,47 @@
                 <h2>🔄 Task Queue</h2>
                 <div id="queueContent">
                     <div class="loading"><span class="spinner"></span>Loading queue stats...</div>
+                </div>
+            </div>
+            
+            <!-- Simulator Control -->
+            <div class="card">
+                <h2>🧪 Load Simulator</h2>
+                <div id="simulatorContent">
+                    <div class="simulator-controls">
+                        <div class="control-group">
+                            <label for="simRate">Rate (events/min):</label>
+                            <input type="number" id="simRate" value="100" min="1" max="10000" />
+                        </div>
+                        <div class="control-group">
+                            <label for="simMode">Mode:</label>
+                            <select id="simMode">
+                                <option value="steady">Steady</option>
+                                <option value="burst">Burst</option>
+                                <option value="ramp">Ramp</option>
+                                <option value="chaos">Chaos</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="simFailureRate">Failure Rate:</label>
+                            <input type="number" id="simFailureRate" value="0" min="0" max="1" step="0.01" />
+                        </div>
+                        <div class="control-group">
+                            <label for="simTimeoutRate">Timeout Rate:</label>
+                            <input type="number" id="simTimeoutRate" value="0" min="0" max="1" step="0.01" />
+                        </div>
+                        <div class="control-group">
+                            <label for="simMalformedRate">Malformed Rate:</label>
+                            <input type="number" id="simMalformedRate" value="0" min="0" max="1" step="0.01" />
+                        </div>
+                        <div class="button-group">
+                            <button id="startSimBtn" class="btn btn-primary">▶️ Start</button>
+                            <button id="stopSimBtn" class="btn btn-danger" disabled>⏹️ Stop</button>
+                        </div>
+                    </div>
+                    <div id="simulatorStatus" class="simulator-status">
+                        <div class="loading"><span class="spinner"></span>Loading simulator status...</div>
+                    </div>
                 </div>
             </div>
             
@@ -1142,6 +1286,161 @@
             return html;
         }
         
+        // Simulator functions
+        const SIMULATOR_ENDPOINT = '/api/v1/ui/simulator';
+        
+        async function updateSimulatorStatus() {
+            try {
+                const response = await fetch(`${SIMULATOR_ENDPOINT}/status`);
+                if (!response.ok) throw new Error('Failed to fetch simulator status');
+                
+                const data = await response.json();
+                const html = buildSimulatorHTML(data);
+                document.getElementById('simulatorStatus').innerHTML = html;
+                
+                // Update button states
+                const isRunning = data.simulator?.running || false;
+                document.getElementById('startSimBtn').disabled = isRunning;
+                document.getElementById('stopSimBtn').disabled = !isRunning;
+                
+            } catch (error) {
+                console.error('Error updating simulator status:', error);
+                document.getElementById('simulatorStatus').innerHTML = `
+                    <div class="empty-state">Unable to load simulator status</div>
+                `;
+            }
+        }
+        
+        function buildSimulatorHTML(data) {
+            if (!data.ok) {
+                return '<div class="empty-state">Simulator unavailable</div>';
+            }
+            
+            const sim = data.simulator || {};
+            const isRunning = sim.running || false;
+            const config = sim.configuration || {};
+            const metrics = sim.metrics || {};
+            
+            const statusBadge = isRunning ? 
+                `<span class="status healthy">Running</span>` : 
+                `<span class="status disabled">Stopped</span>`;
+            
+            let html = `
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    ${statusBadge}
+                </div>
+            `;
+            
+            if (isRunning) {
+                const actualRate = metrics.actual_rate || 0;
+                const targetRate = config.target_rate || 0;
+                const successRate = metrics.events_succeeded && metrics.events_generated ? 
+                    ((metrics.events_succeeded / metrics.events_generated) * 100).toFixed(1) : 0;
+                
+                html += `
+                    <h3>Current Configuration</h3>
+                    <div class="metric">
+                        <span class="metric-label">Mode</span>
+                        <span class="metric-value">${config.mode || 'steady'}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Target Rate</span>
+                        <span class="metric-value">${targetRate} events/min</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Actual Rate</span>
+                        <span class="metric-value">${actualRate} events/min</span>
+                    </div>
+                    
+                    <h3>Metrics</h3>
+                    <div class="sim-metric-grid">
+                        <div class="sim-metric">
+                            <div class="sim-metric-label">Generated</div>
+                            <div class="sim-metric-value">${metrics.events_generated || 0}</div>
+                        </div>
+                        <div class="sim-metric">
+                            <div class="sim-metric-label">Succeeded</div>
+                            <div class="sim-metric-value">${metrics.events_succeeded || 0}</div>
+                        </div>
+                        <div class="sim-metric">
+                            <div class="sim-metric-label">Failed</div>
+                            <div class="sim-metric-value">${metrics.events_failed || 0}</div>
+                        </div>
+                        <div class="sim-metric">
+                            <div class="sim-metric-label">Rate Limited</div>
+                            <div class="sim-metric-value">${metrics.events_rate_limited || 0}</div>
+                        </div>
+                        <div class="sim-metric">
+                            <div class="sim-metric-label">Timeouts</div>
+                            <div class="sim-metric-value">${metrics.events_timeout || 0}</div>
+                        </div>
+                        <div class="sim-metric">
+                            <div class="sim-metric-label">Malformed</div>
+                            <div class="sim-metric-value">${metrics.events_malformed || 0}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="metric" style="margin-top: 15px;">
+                        <span class="metric-label">Success Rate</span>
+                        <span class="metric-value">${successRate}%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Runtime</span>
+                        <span class="metric-value">${Math.round(sim.runtime_seconds || 0)}s</span>
+                    </div>
+                `;
+            } else {
+                html += '<div class="empty-state">Configure and start the simulator above</div>';
+            }
+            
+            return html;
+        }
+        
+        async function startSimulator() {
+            const rate = document.getElementById('simRate').value;
+            const mode = document.getElementById('simMode').value;
+            const failureRate = document.getElementById('simFailureRate').value;
+            const timeoutRate = document.getElementById('simTimeoutRate').value;
+            const malformedRate = document.getElementById('simMalformedRate').value;
+            
+            try {
+                const response = await fetch(`${SIMULATOR_ENDPOINT}/start?rate=${rate}&mode=${mode}&failure_rate=${failureRate}&timeout_rate=${timeoutRate}&malformed_rate=${malformedRate}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    await updateSimulatorStatus();
+                } else {
+                    alert('Failed to start simulator: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error starting simulator:', error);
+                alert('Failed to start simulator');
+            }
+        }
+        
+        async function stopSimulator() {
+            try {
+                const response = await fetch(`${SIMULATOR_ENDPOINT}/stop`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    await updateSimulatorStatus();
+                } else {
+                    alert('Failed to stop simulator: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error stopping simulator:', error);
+                alert('Failed to stop simulator');
+            }
+        }
+        
         // Update last update timestamp
         function updateTimestamp() {
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
@@ -1153,6 +1452,11 @@
             await updateMetrics();
             await updatePolicies();
             await updateQueueStats();
+            await updateSimulatorStatus();
+            
+            // Attach event listeners
+            document.getElementById('startSimBtn').addEventListener('click', startSimulator);
+            document.getElementById('stopSimBtn').addEventListener('click', stopSimulator);
         }
         
         // Set up periodic refresh
@@ -1161,6 +1465,7 @@
             await updateMetrics();
             await updatePolicies();
             await updateQueueStats();
+            await updateSimulatorStatus();
         }, REFRESH_INTERVAL);
         
         // Initialize on page load

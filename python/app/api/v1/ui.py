@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logger import get_logger
 from app.core.db import Alert, Action, get_session
 from app.core.queue import get_queue_stats
+from app.services.simulator import get_simulator, SimulatorMode
 
 # Get router logger
 logger = get_logger(__name__)
@@ -706,6 +707,142 @@ async def get_queue_statistics() -> Dict:
             "worker": {
                 "running": False,
                 "error": "Could not get worker status"
+            }
+        }
+
+
+@router.post(
+    "/simulator/start",
+    summary="Start Simulator",
+    description="Start the load simulator with specified configuration"
+)
+async def start_simulator(
+    rate: int = 100,
+    mode: str = "steady",
+    failure_rate: float = 0.0,
+    timeout_rate: float = 0.0,
+    malformed_rate: float = 0.0
+) -> Dict:
+    """
+    Start the load simulator.
+    
+    Args:
+        rate: Events per minute (default: 100)
+        mode: Operating mode - steady, burst, ramp, chaos (default: steady)
+        failure_rate: Probability of failures 0.0-1.0 (default: 0.0)
+        timeout_rate: Probability of timeouts 0.0-1.0 (default: 0.0)
+        malformed_rate: Probability of malformed payloads 0.0-1.0 (default: 0.0)
+    
+    Returns:
+        Simulator status
+    """
+    try:
+        simulator = get_simulator()
+        
+        # Validate mode
+        try:
+            simulator_mode = SimulatorMode(mode)
+        except ValueError:
+            return {
+                "ok": False,
+                "error": f"Invalid mode: {mode}. Must be one of: steady, burst, ramp, chaos"
+            }
+        
+        # Configure and start
+        simulator.configure(
+            rate=rate,
+            mode=simulator_mode,
+            failure_rate=failure_rate,
+            timeout_rate=timeout_rate,
+            malformed_rate=malformed_rate
+        )
+        
+        await simulator.start()
+        
+        return {
+            "ok": True,
+            "message": "Simulator started",
+            "status": simulator.get_status()
+        }
+    
+    except Exception as e:
+        logger.error(
+            f"Failed to start simulator: {e}",
+            exc_info=True
+        )
+        return {
+            "ok": False,
+            "error": str(e)
+        }
+
+
+@router.post(
+    "/simulator/stop",
+    summary="Stop Simulator",
+    description="Stop the running simulator"
+)
+async def stop_simulator() -> Dict:
+    """
+    Stop the simulator.
+    
+    Returns:
+        Final simulator status
+    """
+    try:
+        simulator = get_simulator()
+        await simulator.stop()
+        
+        return {
+            "ok": True,
+            "message": "Simulator stopped",
+            "status": simulator.get_status()
+        }
+    
+    except Exception as e:
+        logger.error(
+            f"Failed to stop simulator: {e}",
+            exc_info=True
+        )
+        return {
+            "ok": False,
+            "error": str(e)
+        }
+
+
+@router.get(
+    "/simulator/status",
+    summary="Get Simulator Status",
+    description="Get current simulator status and metrics"
+)
+async def get_simulator_status() -> Dict:
+    """
+    Get simulator status.
+    
+    Returns:
+        Current simulator status including metrics
+    """
+    try:
+        simulator = get_simulator()
+        status = simulator.get_status()
+        
+        return {
+            "ok": True,
+            "timestamp": datetime.utcnow().isoformat(),
+            "simulator": status
+        }
+    
+    except Exception as e:
+        logger.error(
+            f"Failed to get simulator status: {e}",
+            exc_info=True
+        )
+        return {
+            "ok": False,
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": str(e),
+            "simulator": {
+                "running": False,
+                "error": "Could not get simulator status"
             }
         }
 
