@@ -129,10 +129,12 @@ def record_request(method: str, endpoint: str, status: int, latency_seconds: flo
     except Exception as e:
         logger.error(
             "Failed to record request metrics",
-            method=method,
-            endpoint=endpoint,
-            status=status,
-            error=str(e),
+            extra={
+                "method": method,
+                "endpoint": endpoint,
+                "status": status,
+                "error": str(e),
+            }
         )
 
 
@@ -150,10 +152,12 @@ def record_action(target: str, action: str, status: str) -> None:
     except Exception as e:
         logger.error(
             "Failed to record action metrics",
-            target=target,
-            action=action,
-            status=status,
-            error=str(e),
+            extra={
+                "target": target,
+                "action": action,
+                "status": status,
+                "error": str(e),
+            }
         )
 
 

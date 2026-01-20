@@ -311,9 +311,11 @@ async def create_policy(request: PolicyCreateRequest) -> PolicyInfo:
     except Exception as e:
         logger.error(
             "Failed to create policy",
-            policy_name=request.name,
-            error=str(e),
             exc_info=True,
+            extra={
+                "policy_name": request.name,
+                "error": str(e),
+            }
         )
         raise HTTPException(status_code=500, detail="Failed to create policy")
 
@@ -382,9 +384,11 @@ async def update_policy(policy_name: str, request: PolicyUpdateRequest) -> Polic
     except Exception as e:
         logger.error(
             "Failed to update policy",
-            policy_name=policy_name,
-            error=str(e),
             exc_info=True,
+            extra={
+                "policy_name": policy_name,
+                "error": str(e),
+            }
         )
         raise HTTPException(status_code=500, detail="Failed to update policy")
 
@@ -433,9 +437,11 @@ async def delete_policy(policy_name: str) -> MessageResponse:
     except Exception as e:
         logger.error(
             "Failed to delete policy",
-            policy_name=policy_name,
-            error=str(e),
             exc_info=True,
+            extra={
+                "policy_name": policy_name,
+                "error": str(e),
+            }
         )
         raise HTTPException(status_code=500, detail="Failed to delete policy")
 
@@ -494,9 +500,11 @@ async def get_policy(policy_name: str) -> PolicyInfo:
     except Exception as e:
         logger.error(
             "Failed to get policy",
-            policy_name=policy_name,
-            error=str(e),
             exc_info=True,
+            extra={
+                "policy_name": policy_name,
+                "error": str(e),
+            }
         )
         raise HTTPException(status_code=500, detail="Failed to get policy")
 
@@ -540,8 +548,10 @@ async def evaluate_all_policies(request: EvaluateRequest) -> EvaluateResponse:
     except Exception as e:
         logger.error(
             "Failed to evaluate policies",
-            error=str(e),
             exc_info=True,
+            extra={
+                "error": str(e),
+            }
         )
         raise HTTPException(status_code=500, detail="Failed to evaluate policies")
 
@@ -573,9 +583,11 @@ async def enable_policy(policy_name: str) -> MessageResponse:
     except Exception as e:
         logger.error(
             "Failed to enable policy",
-            policy_name=policy_name,
-            error=str(e),
             exc_info=True,
+            extra={
+                "policy_name": policy_name,
+                "error": str(e),
+            }
         )
         raise HTTPException(status_code=500, detail="Failed to enable policy")
 
@@ -607,9 +619,11 @@ async def disable_policy(policy_name: str) -> MessageResponse:
     except Exception as e:
         logger.error(
             "Failed to disable policy",
-            policy_name=policy_name,
-            error=str(e),
             exc_info=True,
+            extra={
+                "policy_name": policy_name,
+                "error": str(e),
+            }
         )
         raise HTTPException(status_code=500, detail="Failed to disable policy")
 
@@ -676,9 +690,11 @@ async def get_policies_by_severity(severity: str) -> PolicyListResponse:
     except Exception as e:
         logger.error(
             "Failed to get policies by severity",
-            severity=severity,
-            error=str(e),
             exc_info=True,
+            extra={
+                "severity": severity,
+                "error": str(e),
+            }
         )
         raise HTTPException(status_code=500, detail="Failed to get policies by severity")
 
@@ -721,7 +737,9 @@ async def get_policy_runner_status() -> Dict[str, Any]:
     except Exception as e:
         logger.error(
             "Failed to get policy runner status",
-            error=str(e),
             exc_info=True,
+            extra={
+                "error": str(e),
+            }
         )
         raise HTTPException(status_code=500, detail="Failed to get runner status")

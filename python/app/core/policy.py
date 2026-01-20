@@ -136,8 +136,10 @@ def custom_condition(func: Callable) -> Condition:
         except Exception as e:
             logger.error(
                 "Custom condition evaluation failed",
-                error=str(e),
                 exc_info=True,
+                extra={
+                    "error": str(e),
+                }
             )
             return False
     return check
@@ -158,8 +160,10 @@ async def scale_up_action(target: str, params: Dict[str, Any]) -> Dict[str, Any]
     """
     logger.info(
         "Scaling up resource",
-        target=target,
-        params=params,
+        extra={
+            "target": target,
+            "params": params,
+        }
     )
     return {
         "action": "scale-up",
@@ -182,8 +186,10 @@ async def restart_action(target: str, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     logger.info(
         "Restarting service",
-        target=target,
-        params=params,
+        extra={
+            "target": target,
+            "params": params,
+        }
     )
     return {
         "action": "restart",
@@ -206,8 +212,10 @@ async def drain_pod_action(target: str, params: Dict[str, Any]) -> Dict[str, Any
     """
     logger.info(
         "Draining pod",
-        target=target,
-        params=params,
+        extra={
+            "target": target,
+            "params": params,
+        }
     )
     return {
         "action": "drain-pod",
@@ -264,9 +272,11 @@ class Policy:
         except Exception as e:
             logger.error(
                 "Policy evaluation failed",
-                policy_name=self.name,
-                error=str(e),
                 exc_info=True,
+                extra={
+                    "policy_name": self.name,
+                    "error": str(e),
+                }
             )
             return False
 
@@ -341,9 +351,11 @@ class PolicyRegistry:
         self._policies[policy.name] = policy
         logger.info(
             "Policy registered",
-            policy_name=policy.name,
-            severity=policy.severity.value,
-            enabled=policy.enabled,
+            extra={
+                "policy_name": policy.name,
+                "severity": policy.severity.value,
+                "enabled": policy.enabled,
+            }
         )
 
     def unregister(self, policy_name: str) -> None:
@@ -491,8 +503,10 @@ async def evaluate_policies(
 
     logger.debug(
         "Evaluating policies",
-        metrics_count=len(metrics),
-        target=target,
+        extra={
+            "metrics_count": len(metrics),
+            "target": target,
+        }
     )
 
     for policy in registry.get_enabled():
@@ -513,9 +527,11 @@ async def evaluate_policies(
 
             logger.warning(
                 "Policy violation detected",
-                policy_name=policy.name,
-                severity=policy.severity.value,
-                target=target or "all",
+                extra={
+                    "policy_name": policy.name,
+                    "severity": policy.severity.value,
+                    "target": target or "all",
+                }
             )
 
             # Trigger remediation if enabled
@@ -530,9 +546,11 @@ async def evaluate_policies(
                 except Exception as e:
                     logger.error(
                         "Failed to execute remediation action",
-                        policy_name=policy.name,
-                        error=str(e),
                         exc_info=True,
+                        extra={
+                            "policy_name": policy.name,
+                            "error": str(e),
+                        }
                     )
 
     return {
@@ -563,10 +581,12 @@ async def _execute_action(
 
     logger.info(
         "Executing remediation action",
-        policy_name=policy.name,
-        action=str(action),
-        target=target,
-        params=params,
+        extra={
+            "policy_name": policy.name,
+            "action": str(action),
+            "target": target,
+            "params": params,
+        }
     )
 
     # Execute action based on type
@@ -583,10 +603,12 @@ async def _execute_action(
     # Audit log
     logger.info(
         "Action audit",
-        policy_name=policy.name,
-        action=str(action),
-        target=target,
-        result_status=result.get("status"),
+        extra={
+            "policy_name": policy.name,
+            "action": str(action),
+            "target": target,
+            "result_status": result.get("status"),
+        }
     )
 
     return result
@@ -617,8 +639,10 @@ async def _execute_builtin_action(
     else:
         logger.warning(
             "Unknown action type",
-            action_type=action_type.value,
-            target=target,
+            extra={
+                "action_type": action_type.value,
+                "target": target,
+            }
         )
         return {
             "action": action_type.value,
@@ -674,15 +698,19 @@ def load_policies_from_yaml(file_path: str) -> List[Policy]:
             policies.append(policy)
             logger.info(
                 "Policy loaded from YAML",
-                policy_name=policy.name,
-                file=file_path,
+                extra={
+                    "policy_name": policy.name,
+                    "file": file_path,
+                }
             )
         except Exception as e:
             logger.error(
                 "Failed to load policy from YAML",
-                policy_config=policy_config,
-                error=str(e),
                 exc_info=True,
+                extra={
+                    "policy_config": policy_config,
+                    "error": str(e),
+                }
             )
 
     return policies
@@ -717,15 +745,19 @@ def load_policies_from_json(file_path: str) -> List[Policy]:
             policies.append(policy)
             logger.info(
                 "Policy loaded from JSON",
-                policy_name=policy.name,
-                file=file_path,
+                extra={
+                    "policy_name": policy.name,
+                    "file": file_path,
+                }
             )
         except Exception as e:
             logger.error(
                 "Failed to load policy from JSON",
-                policy_config=policy_config,
-                error=str(e),
                 exc_info=True,
+                extra={
+                    "policy_config": policy_config,
+                    "error": str(e),
+                }
             )
 
     return policies
@@ -768,8 +800,10 @@ def _policy_from_config(config: Dict[str, Any]) -> Policy:
     except ValueError:
         logger.warning(
             "Invalid severity, using default",
-            severity=severity_str,
-            policy_name=name,
+            extra={
+                "severity": severity_str,
+                "policy_name": name,
+            }
         )
         severity = Severity.WARNING
 
@@ -831,7 +865,9 @@ def _build_condition(config: Dict[str, Any]) -> Condition:
         # Default to true condition
         logger.warning(
             "Unknown condition type, using default",
-            condition_type=condition_type,
+            extra={
+                "condition_type": condition_type,
+            }
         )
         return lambda metrics: True
 
@@ -861,13 +897,17 @@ def load_policies_from_config() -> List[Policy]:
                     policies.append(policy)
                     logger.info(
                         "Policy loaded from config file",
-                        policy_name=policy.name,
+                        extra={
+                            "policy_name": policy.name,
+                        }
                     )
         except Exception as e:
             logger.warning(
                 "Failed to load policies from config file",
-                config_path=config_path,
-                error=str(e),
+                extra={
+                    "config_path": config_path,
+                    "error": str(e),
+                }
             )
 
     # Try to load from policies.yaml
@@ -878,8 +918,10 @@ def load_policies_from_config() -> List[Policy]:
         except Exception as e:
             logger.warning(
                 "Failed to load policies from YAML",
-                path=policies_yaml,
-                error=str(e),
+                extra={
+                    "path": policies_yaml,
+                    "error": str(e),
+                }
             )
 
     # Try to load from policies.json
@@ -890,8 +932,10 @@ def load_policies_from_config() -> List[Policy]:
         except Exception as e:
             logger.warning(
                 "Failed to load policies from JSON",
-                path=policies_json,
-                error=str(e),
+                extra={
+                    "path": policies_json,
+                    "error": str(e),
+                }
             )
 
     return policies

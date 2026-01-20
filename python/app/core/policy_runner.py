@@ -81,9 +81,11 @@ async def fetch_recent_metrics(
             
             logger.debug(
                 "Fetched recent metrics",
-                metric_count=len(metrics_dict),
-                lookback_minutes=minutes,
-                batch_size=batch_size,
+                extra={
+                    "metric_count": len(metrics_dict),
+                    "lookback_minutes": minutes,
+                    "batch_size": batch_size,
+                }
             )
             
             return metrics_dict
@@ -91,8 +93,10 @@ async def fetch_recent_metrics(
     except Exception as e:
         logger.error(
             "Failed to fetch recent metrics",
-            error=str(e),
             exc_info=True,
+            extra={
+                "error": str(e),
+            }
         )
         return {}
 
@@ -250,23 +254,29 @@ async def run_single_policy_check() -> Dict[str, Any]:
         if violations:
             logger.warning(
                 "Policy violations detected",
-                violation_count=len(violations),
+                extra={
+                    "violation_count": len(violations),
+                }
             )
             
             for violation in violations:
                 logger.warning(
                     "Policy violation audit log",
-                    policy_name=violation.get("policy_name"),
-                    severity=violation.get("severity"),
-                    target=violation.get("target"),
-                    description=violation.get("description"),
+                    extra={
+                        "policy_name": violation.get("policy_name"),
+                        "severity": violation.get("severity"),
+                        "target": violation.get("target"),
+                        "description": violation.get("description"),
+                    }
                 )
         
         # Log triggered actions
         if actions_triggered:
             logger.info(
                 "Remediation actions triggered",
-                action_count=len(actions_triggered),
+                extra={
+                    "action_count": len(actions_triggered),
+                }
             )
             
             for action in actions_triggered:
@@ -285,18 +295,22 @@ async def run_single_policy_check() -> Dict[str, Any]:
         
         logger.info(
             "Policy evaluation cycle completed",
-            duration_seconds=round(cycle_duration, 3),
-            metrics_evaluated=len(metrics),
-            violations=results["violations"],
-            actions_triggered=results["actions_triggered"],
-            errors=results["errors"],
+            extra={
+                "duration_seconds": round(cycle_duration, 3),
+                "metrics_evaluated": len(metrics),
+                "violations": results["violations"],
+                "actions_triggered": results["actions_triggered"],
+                "errors": results["errors"],
+            }
         )
         
     except Exception as e:
         logger.error(
             "Policy evaluation cycle failed",
-            error=str(e),
             exc_info=True,
+            extra={
+                "error": str(e),
+            }
         )
         results["errors"] += 1
     
@@ -327,8 +341,10 @@ async def run_policy_checks() -> None:
     
     logger.info(
         "Policy runner starting",
-        interval_seconds=getattr(settings, "POLICY_RUNNER_INTERVAL", 30.0),
-        enabled=getattr(settings, "POLICY_RUNNER_ENABLED", True),
+        extra={
+            "interval_seconds": getattr(settings, "POLICY_RUNNER_INTERVAL", 30.0),
+            "enabled": getattr(settings, "POLICY_RUNNER_ENABLED", True),
+        }
     )
     
     iteration = 0
@@ -345,7 +361,9 @@ async def run_policy_checks() -> None:
                 
                 logger.debug(
                     "Policy evaluation iteration starting",
-                    iteration_number=iteration,
+                    extra={
+                        "iteration_number": iteration,
+                    }
                 )
                 
                 # Run policy check
@@ -361,8 +379,10 @@ async def run_policy_checks() -> None:
                 if consecutive_errors >= max_consecutive_errors:
                     logger.error(
                         "Policy runner exceeded maximum consecutive errors, pausing",
-                        consecutive_errors=consecutive_errors,
-                        max_errors=max_consecutive_errors,
+                        extra={
+                            "consecutive_errors": consecutive_errors,
+                            "max_errors": max_consecutive_errors,
+                        }
                     )
                     # Wait longer before retrying
                     await asyncio.sleep(300)  # 5 minutes
@@ -371,16 +391,20 @@ async def run_policy_checks() -> None:
             except asyncio.CancelledError:
                 logger.info(
                     "Policy runner cancelled, shutting down gracefully",
-                    iterations_completed=iteration,
+                    extra={
+                        "iterations_completed": iteration,
+                    }
                 )
                 break
                 
             except Exception as e:
                 logger.error(
                     "Policy evaluation iteration failed",
-                    iteration_number=iteration,
-                    error=str(e),
                     exc_info=True,
+                    extra={
+                        "iteration_number": iteration,
+                        "error": str(e),
+                    }
                 )
                 consecutive_errors += 1
                 
@@ -390,7 +414,9 @@ async def run_policy_checks() -> None:
     finally:
         logger.info(
             "Policy runner shutdown complete",
-            iterations_completed=iteration,
+            extra={
+                "iterations_completed": iteration,
+            }
         )
 
 
@@ -416,8 +442,10 @@ async def start_policy_runner() -> Optional[asyncio.Task]:
         
         logger.info(
             "Policy runner startup",
-            policies_loaded=policy_count,
-            enabled_policies=len(registry.get_enabled()),
+            extra={
+                "policies_loaded": policy_count,
+                "enabled_policies": len(registry.get_enabled()),
+            }
         )
         
         # Create and start task
@@ -428,8 +456,10 @@ async def start_policy_runner() -> Optional[asyncio.Task]:
     except Exception as e:
         logger.error(
             "Failed to start policy runner",
-            error=str(e),
             exc_info=True,
+            extra={
+                "error": str(e),
+            }
         )
         return None
 
@@ -465,8 +495,10 @@ async def stop_policy_runner() -> None:
     except Exception as e:
         logger.error(
             "Error during policy runner shutdown",
-            error=str(e),
             exc_info=True,
+            extra={
+                "error": str(e),
+            }
         )
 
 

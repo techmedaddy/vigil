@@ -320,35 +320,43 @@ async def ingest_metric(
                 if violations:
                     logger.warning(
                         "Policy violations detected during metric ingestion",
-                        metric_name=payload.name,
-                        metric_value=payload.value,
-                        violations_count=len(violations),
+                        extra={
+                            "metric_name": payload.name,
+                            "metric_value": payload.value,
+                            "violations_count": len(violations),
+                        }
                     )
 
                     # Log audit trail for each violation
                     for violation in violations:
                         logger.warning(
                             "Policy violation detected",
-                            policy_name=violation.get("policy_name"),
-                            severity=violation.get("severity"),
-                            target=violation.get("target"),
-                            metric_name=payload.name,
-                            metric_id=metric.id,
+                            extra={
+                                "policy_name": violation.get("policy_name"),
+                                "severity": violation.get("severity"),
+                                "target": violation.get("target"),
+                                "metric_name": payload.name,
+                                "metric_id": metric.id,
+                            }
                         )
 
                 if actions_triggered:
                     logger.info(
                         "Remediation actions triggered",
-                        metric_name=payload.name,
-                        action_count=len(actions_triggered),
+                        extra={
+                            "metric_name": payload.name,
+                            "action_count": len(actions_triggered),
+                        }
                     )
 
             except Exception as e:
                 logger.error(
                     "Policy evaluation failed",
-                    metric_name=payload.name,
-                    error=str(e),
                     exc_info=True,
+                    extra={
+                        "metric_name": payload.name,
+                        "error": str(e),
+                    }
                 )
                 # Don't fail the ingest if policy evaluation fails
         # --- End Policy Evaluation ---
