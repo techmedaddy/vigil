@@ -1,0 +1,601 @@
+{
+  "info": {
+    "_postman_id": "0735e6f1-a8da-4687-acbd-4bbc34928ee1",
+    "name": "vigil",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Metrics and Ingestion",
+      "item": [
+        {
+          "name": "ingest",
+          "id": "79eb28f3-7834-4085-b5ca-14740415e22b",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"cpu_usage\",\n  \"value\": 85.5,\n  \"tags\": {\n    \"host\": \"web-server-01\",\n    \"region\": \"us-east-1\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/v1/ingest",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "ingest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ingest health",
+          "id": "db864b02-c2b4-44e7-9ae2-066e18f88574",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/ingest/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "ingest",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ingest agent metrics",
+          "id": "e0b4d6f5-8e69-4f8d-86bc-df819384cd6d",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"cpu_usage\",\n  \"value\": 85.5,\n  \"tags\": {\n    \"host\": \"web-server-01\",\n    \"agent\": \"vigil-go-agent\",\n    \"version\": \"1.0.0\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/v1/ingest/agent/metrics",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "ingest",
+                "agent",
+                "metrics"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "id": "80b0fb13-55f5-4017-a171-5ce3d5113a1a"
+    },
+    {
+      "name": "Health and System",
+      "item": [
+        {
+          "name": "health",
+          "id": "7e4fa35a-ec12-4e4f-ac7f-5d05f31d8869",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "metrics",
+          "id": "ea6a70aa-5397-4239-839b-6cb531ad8c8e",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/metrics",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "metrics"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "id": "0e257aaa-8ec5-4383-b614-840ab8c8c059"
+    },
+    {
+      "name": "Action Management",
+      "item": [
+        {
+          "name": "cretae action",
+          "id": "05d0663a-f954-49f5-8e73-f4c114d561b7",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target\": \"web-service\",\n  \"action\": \"restart\",\n  \"status\": \"pending\",\n  \"details\": \"Restarting due to high CPU usage detected\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/v1/actions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "actions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Actions",
+          "id": "38191827-5075-4318-a59e-a6f50103adbf",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/actions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "actions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Action by id",
+          "id": "44f0be12-4e6b-4ce8-a82c-7b43c27e8372",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/actions/2",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "actions",
+                "2"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Action by status",
+          "id": "678cea86-45af-4888-95a7-1f05357c7ab8",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/actions/status/pending",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "actions",
+                "status",
+                "pending"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Action Health",
+          "id": "bbb83c32-a731-4fc0-bc2b-04bbe6ac37a7",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/actions/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "actions",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "id": "909a61b3-9f23-480b-84da-7262d92a0ce5"
+    },
+    {
+      "name": "Policies Management",
+      "item": [
+        {
+          "name": "create policy",
+          "id": "58832bc6-6bf3-489e-9e33-32460554d6b2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"high-cpu-alert-v4393\",\n  \"description\": \"Scale up when CPU exceeds 90%\",\n  \"severity\": \"warning\",\n  \"target\": \"web-*\",\n  \"enabled\": true,\n  \"auto_remediate\": true,\n  \"condition\": {\n    \"type\": \"metric_exceeds\",\n    \"metric\": \"cpu_percent\",\n    \"threshold\": 90\n  },\n  \"action\": \"scale-up\",\n  \"params\": {\n    \"replicas\": 2\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List All Policies",
+          "id": "208cfbfe-b793-4498-a2bb-2540fa2edb37",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Specific Policy",
+          "id": "16763d81-dcbc-4b0c-8ed0-fcde90cd2f36",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies/test-policy-fixed",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "test-policy-fixed"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update policy",
+          "id": "6e5c76a1-f19f-4520-9057-1ce124fab0e1",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Critical alert: Scale web services on high CPU\",\n  \"severity\": \"critical\",\n  \"enabled\": true,\n  \"auto_remediate\": true,\n  \"params\": {\n    \"replicas\": 10,\n    \"timeout\": 60,\n    \"strategy\": \"rolling\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies/test-policy-fixed",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "test-policy-fixed"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Policy",
+          "id": "4c27c2b1-95c0-4cff-a91d-4b6ef233d1b3",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies/test-policy-fixed",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "test-policy-fixed"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Evaluate Policies Manually",
+          "id": "9523278c-002e-4af3-8049-9283d6ce4ed0",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"metrics\": {\n    \"cpu_percent\": 95,\n    \"memory_percent\": 88,\n    \"disk_free_percent\": 10\n  },\n  \"target\": \"web-server-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies/evaluate",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "evaluate"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Enable Policy",
+          "id": "72c4292c-6d3c-46e3-9d79-54bbd849cca4",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies/pod-drain-required/enable",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "pod-drain-required",
+                "enable"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Disable Policy",
+          "id": "60545e29-5542-42a1-827d-67800fbcf2c6",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies/pod-drain-required/disable",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "pod-drain-required",
+                "disable"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reload Policies",
+          "id": "a2617e17-0b17-455c-b383-d7612dde9dde",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies/reload",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "reload"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Policies by Severity",
+          "id": "7b0deb34-01d3-4d43-a785-404e397ad939",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies/severity/critical",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "severity",
+                "critical"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Policy Runner Status",
+          "id": "a207966b-cdeb-44a7-a53c-c5cd43cdab61",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/v1/policies/runner/status",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "runner",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "id": "2c3b1ebd-e41c-4fa5-bb7e-16fbe86f70c1"
+    }
+  ]
+}

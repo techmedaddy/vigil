@@ -1,0 +1,1566 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Vigil Monitoring API",
+        "description": "Advanced monitoring and remediation system",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/api/v1/ingest": {
+            "post": {
+                "tags": [
+                    "metrics"
+                ],
+                "summary": "Ingest a metric",
+                "description": "Store a new metric and evaluate policies for remediation",
+                "operationId": "ingest_metric_api_v1_ingest_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/IngestMetricRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IngestMetricResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ingest/health": {
+            "get": {
+                "tags": [
+                    "metrics"
+                ],
+                "summary": "Health check",
+                "description": "Check if the ingest service is operational",
+                "operationId": "health_check_api_v1_ingest_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    },
+                                    "type": "object",
+                                    "title": "Response Health Check Api V1 Ingest Health Get"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        },
+        "/api/v1/ingest/agent/metrics": {
+            "post": {
+                "tags": [
+                    "metrics"
+                ],
+                "summary": "Ingest metrics from agent",
+                "description": "Agent-specific endpoint for metric ingestion (alias for main ingest endpoint)",
+                "operationId": "ingest_agent_metrics_api_v1_ingest_agent_metrics_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/IngestMetricRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IngestMetricResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/actions/health": {
+            "get": {
+                "tags": [
+                    "actions"
+                ],
+                "summary": "Health check",
+                "description": "Check if the actions service is operational",
+                "operationId": "health_check_api_v1_actions_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    },
+                                    "type": "object",
+                                    "title": "Response Health Check Api V1 Actions Health Get"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        },
+        "/api/v1/actions": {
+            "post": {
+                "tags": [
+                    "actions"
+                ],
+                "summary": "Create an action",
+                "description": "Create a new remediation action record",
+                "operationId": "create_action_api_v1_actions_post",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateActionRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ActionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "tags": [
+                    "actions"
+                ],
+                "summary": "List actions",
+                "description": "Retrieve recent actions",
+                "operationId": "list_actions_api_v1_actions_get",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Status"
+                        }
+                    },
+                    {
+                        "name": "target",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Target"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ListActionsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/actions/{action_id}": {
+            "get": {
+                "tags": [
+                    "actions"
+                ],
+                "summary": "Get action details",
+                "description": "Retrieve details of a specific action",
+                "operationId": "get_action_detail_api_v1_actions__action_id__get",
+                "parameters": [
+                    {
+                        "name": "action_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Action Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ActionDetailResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/actions/status/{action_status}": {
+            "get": {
+                "tags": [
+                    "actions"
+                ],
+                "summary": "Filter actions by status",
+                "description": "Retrieve actions with a specific status",
+                "operationId": "get_actions_by_status_api_v1_actions_status__action_status__get",
+                "parameters": [
+                    {
+                        "name": "action_status",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Action Status"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ListActionsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policies": {
+            "get": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "List Policies",
+                "description": "List all registered policies.\n\nReturns:\n    PolicyListResponse with all policies and counts",
+                "operationId": "list_policies_api_v1_policies_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PolicyListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Create Policy",
+                "description": "Create a new policy.\n\nArgs:\n    request: PolicyCreateRequest with policy configuration\n\nReturns:\n    PolicyInfo with created policy details\n\nRaises:\n    HTTPException: If policy name already exists or invalid configuration\n\nExample:\n    ```json\n    {\n        \"name\": \"my-policy\",\n        \"description\": \"My custom policy\",\n        \"severity\": \"warning\",\n        \"target\": \"web-*\",\n        \"enabled\": true,\n        \"auto_remediate\": false,\n        \"condition\": {\n            \"type\": \"metric_exceeds\",\n            \"metric\": \"cpu_percent\",\n            \"threshold\": 85\n        },\n        \"action\": \"scale-up\",\n        \"params\": {\"replicas\": 2}\n    }\n    ```",
+                "operationId": "create_policy_api_v1_policies_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PolicyCreateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PolicyInfo"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policies/{policy_name}": {
+            "put": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Update Policy",
+                "description": "Update an existing policy.\n\nArgs:\n    policy_name: Name of the policy to update\n    request: PolicyUpdateRequest with fields to update\n\nReturns:\n    PolicyInfo with updated policy details\n\nRaises:\n    HTTPException: If policy not found\n\nExample:\n    ```json\n    {\n        \"description\": \"Updated description\",\n        \"severity\": \"critical\",\n        \"params\": {\"replicas\": 3}\n    }\n    ```",
+                "operationId": "update_policy_api_v1_policies__policy_name__put",
+                "parameters": [
+                    {
+                        "name": "policy_name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Policy Name"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PolicyUpdateRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PolicyInfo"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Delete Policy",
+                "description": "Delete a policy.\n\nArgs:\n    policy_name: Name of the policy to delete\n\nReturns:\n    MessageResponse confirming deletion\n\nRaises:\n    HTTPException: If policy not found",
+                "operationId": "delete_policy_api_v1_policies__policy_name__delete",
+                "parameters": [
+                    {
+                        "name": "policy_name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Policy Name"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Get Policy",
+                "description": "Get details of a specific policy.\n\nArgs:\n    policy_name: Name of the policy\n\nReturns:\n    PolicyInfo with policy details\n\nRaises:\n    HTTPException: If policy not found",
+                "operationId": "get_policy_api_v1_policies__policy_name__get",
+                "parameters": [
+                    {
+                        "name": "policy_name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Policy Name"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PolicyInfo"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policies/evaluate": {
+            "post": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Evaluate All Policies",
+                "description": "Evaluate all enabled policies against provided metrics.\n\nArgs:\n    request: EvaluateRequest with metrics and optional target\n\nReturns:\n    EvaluateResponse with violations and actions\n\nExample:\n    ```json\n    {\n        \"metrics\": {\n            \"cpu_percent\": 95,\n            \"memory_percent\": 88,\n            \"disk_free_percent\": 10\n        },\n        \"target\": \"web-server-01\"\n    }\n    ```",
+                "operationId": "evaluate_all_policies_api_v1_policies_evaluate_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EvaluateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/EvaluateResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policies/{policy_name}/enable": {
+            "put": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Enable Policy",
+                "description": "Enable a policy.\n\nArgs:\n    policy_name: Name of the policy\n\nReturns:\n    MessageResponse confirming enablement\n\nRaises:\n    HTTPException: If policy not found",
+                "operationId": "enable_policy_api_v1_policies__policy_name__enable_put",
+                "parameters": [
+                    {
+                        "name": "policy_name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Policy Name"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policies/{policy_name}/disable": {
+            "put": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Disable Policy",
+                "description": "Disable a policy.\n\nArgs:\n    policy_name: Name of the policy\n\nReturns:\n    MessageResponse confirming disablement\n\nRaises:\n    HTTPException: If policy not found",
+                "operationId": "disable_policy_api_v1_policies__policy_name__disable_put",
+                "parameters": [
+                    {
+                        "name": "policy_name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Policy Name"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policies/reload": {
+            "post": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Reload Policies",
+                "description": "Reload policies from configuration files.\n\nReturns:\n    MessageResponse with reload status",
+                "operationId": "reload_policies_api_v1_policies_reload_post",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        },
+        "/api/v1/policies/severity/{severity}": {
+            "get": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Get Policies By Severity",
+                "description": "Get policies filtered by severity level.\n\nArgs:\n    severity: Severity level (info, warning, critical)\n\nReturns:\n    PolicyListResponse with filtered policies\n\nRaises:\n    HTTPException: If severity invalid",
+                "operationId": "get_policies_by_severity_api_v1_policies_severity__severity__get",
+                "parameters": [
+                    {
+                        "name": "severity",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Severity"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PolicyListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policies/runner/status": {
+            "get": {
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Get Policy Runner Status",
+                "description": "Get the status of the policy runner.\n\nReturns:\n    Status information including enabled state, running state, and configuration\n\nExample response:\n    ```json\n    {\n        \"ok\": true,\n        \"runner\": {\n            \"enabled\": true,\n            \"running\": true,\n            \"interval_seconds\": 30,\n            \"batch_size\": 100\n        }\n    }\n    ```",
+                "operationId": "get_policy_runner_status_api_v1_policies_runner_status_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Get Policy Runner Status Api V1 Policies Runner Status Get"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request"
+                    },
+                    "404": {
+                        "description": "Policy not found"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "ActionDetailResponse": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "title": "Id"
+                    },
+                    "target": {
+                        "type": "string",
+                        "title": "Target"
+                    },
+                    "action": {
+                        "type": "string",
+                        "title": "Action"
+                    },
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    },
+                    "details": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Details"
+                    },
+                    "started_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Started At"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "target",
+                    "action",
+                    "status",
+                    "started_at"
+                ],
+                "title": "ActionDetailResponse",
+                "description": "Response model for action details."
+            },
+            "ActionResponse": {
+                "properties": {
+                    "ok": {
+                        "type": "boolean",
+                        "title": "Ok",
+                        "description": "Success flag",
+                        "default": true
+                    },
+                    "action_id": {
+                        "type": "integer",
+                        "title": "Action Id",
+                        "description": "ID of the created action"
+                    },
+                    "message": {
+                        "type": "string",
+                        "title": "Message",
+                        "description": "Response message",
+                        "default": "Action created successfully"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "action_id"
+                ],
+                "title": "ActionResponse",
+                "description": "Response model for action creation."
+            },
+            "ActionResult": {
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "title": "Action",
+                        "description": "Action type"
+                    },
+                    "target": {
+                        "type": "string",
+                        "title": "Target",
+                        "description": "Target resource"
+                    },
+                    "status": {
+                        "type": "string",
+                        "title": "Status",
+                        "description": "Action status"
+                    },
+                    "params": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Params",
+                        "description": "Action parameters"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "action",
+                    "target",
+                    "status"
+                ],
+                "title": "ActionResult",
+                "description": "Remediation action result model."
+            },
+            "CreateActionRequest": {
+                "properties": {
+                    "target": {
+                        "type": "string",
+                        "maxLength": 255,
+                        "minLength": 1,
+                        "title": "Target",
+                        "description": "Target resource identifier"
+                    },
+                    "action": {
+                        "type": "string",
+                        "maxLength": 255,
+                        "minLength": 1,
+                        "title": "Action",
+                        "description": "Action type to perform"
+                    },
+                    "status": {
+                        "type": "string",
+                        "title": "Status",
+                        "description": "Action status",
+                        "default": "pending"
+                    },
+                    "details": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Details",
+                        "description": "Additional details about the action"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "target",
+                    "action"
+                ],
+                "title": "CreateActionRequest",
+                "description": "Request model for creating an action.\n\nAttributes:\n    target: Target resource (e.g., 'web-service', 'database-pod')\n    action: Action type (e.g., 'restart', 'scale-up', 'drain')\n    status: Current status of the action\n    details: Optional detailed information about the action"
+            },
+            "EvaluateRequest": {
+                "properties": {
+                    "metrics": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Metrics",
+                        "description": "Metric values to evaluate"
+                    },
+                    "target": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Target",
+                        "description": "Optional target resource filter"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "metrics"
+                ],
+                "title": "EvaluateRequest",
+                "description": "Request model for policy evaluation."
+            },
+            "EvaluateResponse": {
+                "properties": {
+                    "ok": {
+                        "type": "boolean",
+                        "title": "Ok",
+                        "description": "Success flag",
+                        "default": true
+                    },
+                    "violations": {
+                        "items": {
+                            "$ref": "#/components/schemas/PolicyViolation"
+                        },
+                        "type": "array",
+                        "title": "Violations",
+                        "description": "Detected violations"
+                    },
+                    "actions_triggered": {
+                        "items": {
+                            "$ref": "#/components/schemas/ActionResult"
+                        },
+                        "type": "array",
+                        "title": "Actions Triggered",
+                        "description": "Triggered actions"
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "title": "Timestamp",
+                        "description": "Evaluation timestamp"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "violations",
+                    "actions_triggered",
+                    "timestamp"
+                ],
+                "title": "EvaluateResponse",
+                "description": "Response model for policy evaluation."
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "IngestMetricRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 255,
+                        "minLength": 1,
+                        "title": "Name",
+                        "description": "Metric name"
+                    },
+                    "value": {
+                        "type": "number",
+                        "title": "Value",
+                        "description": "Numeric metric value"
+                    },
+                    "tags": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "type": "string"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Tags",
+                        "description": "Optional tags for the metric"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "value"
+                ],
+                "title": "IngestMetricRequest",
+                "description": "Request model for metric ingestion.\n\nAttributes:\n    name: Metric name (e.g., 'cpu_usage', 'memory_usage')\n    value: Numeric metric value\n    tags: Optional dictionary of metric tags for categorization"
+            },
+            "IngestMetricResponse": {
+                "properties": {
+                    "ok": {
+                        "type": "boolean",
+                        "title": "Ok",
+                        "description": "Success flag",
+                        "default": true
+                    },
+                    "metric_id": {
+                        "type": "integer",
+                        "title": "Metric Id",
+                        "description": "ID of the stored metric"
+                    },
+                    "message": {
+                        "type": "string",
+                        "title": "Message",
+                        "description": "Response message",
+                        "default": "Metric ingested successfully"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "metric_id"
+                ],
+                "title": "IngestMetricResponse",
+                "description": "Response model for successful metric ingestion."
+            },
+            "ListActionsResponse": {
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "title": "Count",
+                        "description": "Number of actions returned"
+                    },
+                    "actions": {
+                        "items": {
+                            "$ref": "#/components/schemas/ActionDetailResponse"
+                        },
+                        "type": "array",
+                        "title": "Actions",
+                        "description": "List of actions"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "count",
+                    "actions"
+                ],
+                "title": "ListActionsResponse",
+                "description": "Response model for listing actions."
+            },
+            "MessageResponse": {
+                "properties": {
+                    "ok": {
+                        "type": "boolean",
+                        "title": "Ok",
+                        "description": "Success flag",
+                        "default": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "title": "Message",
+                        "description": "Response message"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "message"
+                ],
+                "title": "MessageResponse",
+                "description": "Generic message response."
+            },
+            "PolicyCreateRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name",
+                        "description": "Unique policy name"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description",
+                        "description": "Policy description",
+                        "default": ""
+                    },
+                    "severity": {
+                        "type": "string",
+                        "title": "Severity",
+                        "description": "Severity level: info, warning, critical",
+                        "default": "warning"
+                    },
+                    "target": {
+                        "type": "string",
+                        "title": "Target",
+                        "description": "Target resource pattern",
+                        "default": "all"
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "title": "Enabled",
+                        "description": "Whether policy starts enabled",
+                        "default": true
+                    },
+                    "auto_remediate": {
+                        "type": "boolean",
+                        "title": "Auto Remediate",
+                        "description": "Whether to auto-remediate violations",
+                        "default": false
+                    },
+                    "condition": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Condition",
+                        "description": "Condition configuration"
+                    },
+                    "action": {
+                        "type": "string",
+                        "title": "Action",
+                        "description": "Action to take: scale-up, restart, drain-pod, custom"
+                    },
+                    "params": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Params",
+                        "description": "Action parameters"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "condition",
+                    "action"
+                ],
+                "title": "PolicyCreateRequest",
+                "description": "Request model for creating a new policy."
+            },
+            "PolicyInfo": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name",
+                        "description": "Policy name"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description",
+                        "description": "Policy description"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "title": "Severity",
+                        "description": "Violation severity"
+                    },
+                    "target": {
+                        "type": "string",
+                        "title": "Target",
+                        "description": "Target resource pattern"
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "title": "Enabled",
+                        "description": "Whether policy is active"
+                    },
+                    "params": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Params",
+                        "description": "Action parameters"
+                    },
+                    "auto_remediate": {
+                        "type": "boolean",
+                        "title": "Auto Remediate",
+                        "description": "Auto remediation enabled"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "description",
+                    "severity",
+                    "target",
+                    "enabled",
+                    "params",
+                    "auto_remediate"
+                ],
+                "title": "PolicyInfo",
+                "description": "Policy information model for API responses."
+            },
+            "PolicyListResponse": {
+                "properties": {
+                    "ok": {
+                        "type": "boolean",
+                        "title": "Ok",
+                        "description": "Success flag",
+                        "default": true
+                    },
+                    "policies": {
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/PolicyInfo"
+                        },
+                        "type": "object",
+                        "title": "Policies",
+                        "description": "Map of policies"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "title": "Total",
+                        "description": "Total number of policies"
+                    },
+                    "enabled_count": {
+                        "type": "integer",
+                        "title": "Enabled Count",
+                        "description": "Number of enabled policies"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "policies",
+                    "total",
+                    "enabled_count"
+                ],
+                "title": "PolicyListResponse",
+                "description": "Response model for listing policies."
+            },
+            "PolicyUpdateRequest": {
+                "properties": {
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description",
+                        "description": "Policy description"
+                    },
+                    "severity": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Severity",
+                        "description": "Severity level"
+                    },
+                    "target": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Target",
+                        "description": "Target resource pattern"
+                    },
+                    "enabled": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Enabled",
+                        "description": "Whether policy is enabled"
+                    },
+                    "auto_remediate": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Auto Remediate",
+                        "description": "Whether to auto-remediate"
+                    },
+                    "params": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Params",
+                        "description": "Action parameters"
+                    }
+                },
+                "type": "object",
+                "title": "PolicyUpdateRequest",
+                "description": "Request model for updating a policy."
+            },
+            "PolicyViolation": {
+                "properties": {
+                    "policy_name": {
+                        "type": "string",
+                        "title": "Policy Name",
+                        "description": "Name of violated policy"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "title": "Severity",
+                        "description": "Violation severity"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description",
+                        "description": "Policy description"
+                    },
+                    "target": {
+                        "type": "string",
+                        "title": "Target",
+                        "description": "Target resource"
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "title": "Timestamp",
+                        "description": "Violation timestamp (ISO 8601)"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "policy_name",
+                    "severity",
+                    "description",
+                    "target",
+                    "timestamp"
+                ],
+                "title": "PolicyViolation",
+                "description": "Policy violation model."
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}
