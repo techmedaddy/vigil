@@ -1,8 +1,7 @@
 # Vigil Monitoring System — Complete Documentation
 
 > **Version:** 1.0.0  
-> **Purpose:** Comprehensive technical documentation for interview preparation and Notion publishing
-
+> **Purpose:** Comprehensive technical documentation 
 ---
 
 ## Table of Contents

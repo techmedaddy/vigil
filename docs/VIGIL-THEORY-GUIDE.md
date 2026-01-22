@@ -315,4 +315,4 @@ graph TD
 
 ---
 
-*This theory guide emphasizes conceptual understanding for architectural discussions and interviews. Refer to `VIGIL-COMPLETE-DOCUMENTATION.md` for hands-on API details and runbooks.*
+*This theory guide emphasizes conceptual understanding for architectural discussions. Refer to `VIGIL-COMPLETE-DOCUMENTATION.md` for hands-on API details and runbooks.*
