@@ -1,11 +1,4 @@
-"""
-Background task utilities for Vigil monitoring system.
-
-Provides periodic background tasks for:
-- Agent checks: Query metrics and detect anomalies
-- GitOps daemon: Reconcile manifests and track drift
-- Graceful shutdown with cancellation support
-"""
+"""Background tasks for agent checks and GitOps daemon with graceful shutdown."""
 
 import asyncio
 from typing import Optional, List
@@ -26,20 +19,8 @@ _background_tasks: List[asyncio.Task] = []
 # --- Agent Loop ---
 
 async def start_agent_loop() -> asyncio.Task:
-    """
-    Start the periodic agent check loop.
-
-    The agent:
-    - Runs every AGENT_INTERVAL seconds
-    - Queries recent metrics from the database
-    - Detects anomalies based on thresholds
-    - Logs findings for downstream processing
-
-    Returns:
-        asyncio.Task handle for the agent loop
-    """
+    """Start the periodic agent check loop for metrics and anomaly detection."""
     async def agent_check():
-        """Periodic agent check implementation."""
         logger.info(
             "Agent loop starting",
             interval_seconds=settings.AGENT_INTERVAL
@@ -141,20 +122,8 @@ async def start_agent_loop() -> asyncio.Task:
 # --- GitOps Daemon Loop ---
 
 async def start_gitopsd_loop() -> asyncio.Task:
-    """
-    Start the GitOps daemon sync loop.
-
-    The GitOpsD daemon:
-    - Runs every GITOPSD_INTERVAL seconds
-    - Reads manifests from configured paths
-    - Compares desired state vs actual state
-    - Logs drift events for reconciliation
-
-    Returns:
-        asyncio.Task handle for the GitOpsD loop
-    """
+    """Start the GitOps daemon loop for manifest drift detection."""
     async def gitopsd_sync():
-        """Periodic GitOps sync implementation."""
         logger.info(
             "GitOpsD loop starting",
             interval_seconds=settings.GITOPSD_INTERVAL
@@ -240,18 +209,7 @@ async def start_gitopsd_loop() -> asyncio.Task:
 # --- Anomaly Detection ---
 
 def _detect_anomalies(metrics: list) -> list:
-    """
-    Detect anomalies in metrics based on thresholds.
-
-    This is a placeholder implementation. In production, integrate with
-    a proper anomaly detection service or policy engine.
-
-    Args:
-        metrics: List of Metric objects
-
-    Returns:
-        List of detected anomalies with details
-    """
+    """Detect anomalies in metrics based on thresholds."""
     anomalies = []
 
     # Define thresholds for common metrics
@@ -284,15 +242,7 @@ def _detect_anomalies(metrics: list) -> list:
 # --- Manifest Reconciliation ---
 
 def _reconcile_manifests() -> list:
-    """
-    Reconcile manifests with live state and detect drift.
-
-    This is a placeholder implementation. In production, integrate with
-    your configuration management system (e.g., Kubernetes, Terraform, etc.)
-
-    Returns:
-        List of drift events detected
-    """
+    """Reconcile manifests with live state and detect drift (placeholder)."""
     drift_events = []
 
     # Placeholder: Simulate drift detection
@@ -315,20 +265,7 @@ def _reconcile_manifests() -> list:
 # --- Task Lifecycle Management ---
 
 async def start_all_background_tasks() -> None:
-    """
-    Start all background tasks.
-
-    Should be called during application startup (in lifespan).
-
-    Example:
-        @asynccontextmanager
-        async def lifespan(app: FastAPI):
-            # Startup
-            await start_all_background_tasks()
-            yield
-            # Shutdown
-            await cancel_all_background_tasks()
-    """
+    """Start all background tasks at application startup."""
     logger.info("Starting all background tasks")
 
     try:
@@ -347,11 +284,7 @@ async def start_all_background_tasks() -> None:
 
 
 async def cancel_all_background_tasks() -> None:
-    """
-    Cancel all background tasks and wait for graceful shutdown.
-
-    Should be called during application shutdown (in lifespan).
-    """
+    """Cancel all background tasks at application shutdown."""
     if not _background_tasks:
         logger.info("No background tasks to cancel")
         return
@@ -376,12 +309,7 @@ async def cancel_all_background_tasks() -> None:
 
 
 async def get_background_task_status() -> dict:
-    """
-    Get status of all background tasks.
-
-    Returns:
-        Dictionary with task information
-    """
+    """Get status of all background tasks."""
     return {
         "total_tasks": len(_background_tasks),
         "running_tasks": sum(1 for t in _background_tasks if not t.done()),

@@ -1,13 +1,4 @@
-"""
-Vigil Monitoring System - FastAPI Application Entrypoint
-
-Lightweight application factory that:
-- Initializes configuration and logging
-- Sets up database connections
-- Registers API routers
-- Configures middleware and startup/shutdown events
-- Manages background tasks (agent, gitopsd)
-"""
+"""Vigil Monitoring System - FastAPI Application Entrypoint."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -63,19 +54,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Manage application lifecycle.
-    
-    Startup:
-    - Initialize database and create tables
-    - Start background tasks (agent, gitopsd)
-    - Log startup information
-    
-    Shutdown:
-    - Cancel background tasks
-    - Close database connections
-    - Clean up resources
-    """
+    """Manage application lifecycle (startup and shutdown)."""
     # Startup
     db_type = settings.DATABASE_URL.split("://")[0]
     logger.info(

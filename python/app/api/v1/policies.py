@@ -1,8 +1,4 @@
-"""
-Policies endpoint for Vigil monitoring system.
-
-Handles policy management, evaluation, and remediation.
-"""
+"""Policies endpoint for policy management, evaluation, and remediation."""
 
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -30,18 +26,7 @@ logger = get_logger(__name__)
 # --- Helper Functions ---
 
 def _build_condition_from_config(config: Dict[str, Any]):
-    """
-    Build a condition function from configuration.
-
-    Args:
-        config: Condition configuration dictionary
-
-    Returns:
-        Callable condition function
-
-    Raises:
-        ValueError: If condition type is invalid
-    """
+    """Build a condition function from config dict."""
     condition_type = config.get("type")
 
     if condition_type == "metric_exceeds":
@@ -59,18 +44,7 @@ def _build_condition_from_config(config: Dict[str, Any]):
 
 
 def _build_action_from_string(action_str: str):
-    """
-    Convert action string to ActionType or callable.
-
-    Args:
-        action_str: Action string (scale-up, restart, drain-pod, custom)
-
-    Returns:
-        ActionType enum or callable
-
-    Raises:
-        ValueError: If action is invalid
-    """
+    """Convert action string to ActionType enum."""
     action_map = {
         "scale-up": ActionType.SCALE_UP,
         "restart": ActionType.RESTART_SERVICE,

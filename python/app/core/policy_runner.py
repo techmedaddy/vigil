@@ -1,14 +1,4 @@
-"""
-Policy runner for Vigil monitoring system.
-
-Continuously evaluates policies against current metrics and triggers remediation actions.
-Provides:
-- Periodic policy evaluation loop
-- Metrics fetching from database
-- Remediation action execution
-- Audit logging of policy evaluation cycles
-- Graceful startup/shutdown integration
-"""
+"""Policy runner for continuous policy evaluation and remediation."""
 
 import asyncio
 import json
@@ -36,16 +26,7 @@ async def fetch_recent_metrics(
     minutes: int = 5,
     batch_size: int = 100,
 ) -> Dict[str, Any]:
-    """
-    Fetch recent metrics from database for policy evaluation.
-
-    Args:
-        minutes: Number of minutes to look back
-        batch_size: Maximum number of metrics to fetch
-
-    Returns:
-        Dictionary mapping metric names to their latest values
-    """
+    """Fetch recent metrics from database for policy evaluation."""
     try:
         db_manager = get_db_manager()
         
@@ -109,18 +90,7 @@ async def execute_remediation_action(
     params: Dict[str, Any],
     policy_name: str,
 ) -> bool:
-    """
-    Execute a remediation action by storing it in the database and enqueuing it.
-
-    Args:
-        target: Target resource identifier
-        action_type: Type of action to execute
-        params: Action parameters
-        policy_name: Name of policy that triggered the action
-
-    Returns:
-        True if action was successfully recorded and enqueued, False otherwise
-    """
+    """Execute a remediation action by recording to DB and enqueuing."""
     try:
         db_manager = get_db_manager()
         

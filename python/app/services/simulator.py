@@ -1,20 +1,4 @@
-"""
-Vigil Simulator Service - Phase 5
-
-Generates synthetic ingestion events at configurable rates to test:
-- API throughput and latency
-- Policy evaluation under load
-- Worker queue and remediation pipeline
-- Rate limiting and retry logic
-- System recovery after overload
-
-Features:
-- Configurable event rates (100, 500, 1000+ req/min)
-- Randomized payloads (normal, warning, critical conditions)
-- Failure injection (timeouts, malformed payloads, rate limit breaches)
-- Real-time status tracking and metrics
-- Graceful start/stop with cleanup
-"""
+"""Load simulator for generating synthetic events to test system behavior."""
 
 import asyncio
 import random
@@ -31,7 +15,6 @@ logger = get_logger(__name__)
 
 
 class SimulatorMode(str, Enum):
-    """Simulator operating modes"""
     STEADY = "steady"           # Constant rate
     BURST = "burst"             # Periodic spikes
     RAMP = "ramp"               # Gradually increase
@@ -39,19 +22,13 @@ class SimulatorMode(str, Enum):
 
 
 class EventSeverity(str, Enum):
-    """Event severity levels"""
     NORMAL = "normal"           # 0-70% resource usage
     WARNING = "warning"         # 70-85% resource usage
     CRITICAL = "critical"       # 85-100% resource usage
 
 
 class Simulator:
-    """
-    Load simulator for Vigil monitoring system.
-    
-    Generates synthetic events to test system behavior under various
-    load conditions and failure scenarios.
-    """
+    """Load simulator for generating synthetic events."""
     
     def __init__(self):
         self.settings = get_settings()
@@ -86,16 +63,7 @@ class Simulator:
         timeout_rate: float = 0.0,
         malformed_rate: float = 0.0
     ):
-        """
-        Configure simulator parameters.
-        
-        Args:
-            rate: Target events per minute
-            mode: Operating mode (steady, burst, ramp, chaos)
-            failure_rate: Probability of generating failed requests (0.0-1.0)
-            timeout_rate: Probability of timeout (0.0-1.0)
-            malformed_rate: Probability of malformed payload (0.0-1.0)
-        """
+        """Configure simulator parameters."""
         self.target_rate = max(1, rate)
         self.mode = mode
         self.failure_rate = max(0.0, min(1.0, failure_rate))
@@ -115,7 +83,7 @@ class Simulator:
         )
     
     async def start(self):
-        """Start the simulator"""
+        """Start the simulator."""
         if self.running:
             logger.warning("Simulator already running")
             return
@@ -142,7 +110,7 @@ class Simulator:
         self.task = asyncio.create_task(self._run())
     
     async def stop(self):
-        """Stop the simulator"""
+        """Stop the simulator."""
         if not self.running:
             logger.warning("Simulator not running")
             return
@@ -173,7 +141,7 @@ class Simulator:
         )
     
     def get_status(self) -> Dict:
-        """Get current simulator status"""
+        """Get current simulator status."""
         if self.started_at:
             runtime = (datetime.utcnow() - self.started_at).total_seconds()
             actual_rate = (self.events_generated / runtime * 60) if runtime > 0 else 0

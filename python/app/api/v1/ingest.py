@@ -1,8 +1,4 @@
-"""
-Metrics ingestion endpoint for Vigil monitoring system.
-
-Handles POST requests to store metrics and trigger policy evaluation.
-"""
+"""Metrics ingestion endpoint for storing metrics and triggering policy evaluation."""
 
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -48,14 +44,7 @@ router = APIRouter(
 # --- Pydantic Models ---
 
 class IngestMetricRequest(BaseModel):
-    """
-    Request model for metric ingestion.
-
-    Attributes:
-        name: Metric name (e.g., 'cpu_usage', 'memory_usage')
-        value: Numeric metric value
-        tags: Optional dictionary of metric tags for categorization
-    """
+    """Request model for metric ingestion."""
 
     name: str = Field(
         ...,
@@ -74,14 +63,12 @@ class IngestMetricRequest(BaseModel):
 
     @validator("name")
     def validate_name(cls, v):
-        """Ensure metric name is valid."""
         if not v or not v.strip():
             raise ValueError("Metric name cannot be empty")
         return v.strip()
 
     @validator("value")
     def validate_value(cls, v):
-        """Ensure value is a valid number."""
         try:
             return float(v)
         except (TypeError, ValueError):
@@ -99,7 +86,7 @@ class IngestMetricRequest(BaseModel):
 
 
 class IngestMetricResponse(BaseModel):
-    """Response model for successful metric ingestion."""
+    """Response model for metric ingestion."""
 
     ok: bool = Field(
         default=True,
@@ -115,7 +102,6 @@ class IngestMetricResponse(BaseModel):
     )
 
     class Config:
-        """Pydantic model configuration."""
         schema_extra = {
             "example": {
                 "ok": True,
@@ -128,12 +114,7 @@ class IngestMetricResponse(BaseModel):
 # --- Dependency for policy evaluation ---
 
 def get_evaluator():
-    """
-    Get policy evaluator function.
-
-    Returns:
-        Policy evaluation function or None if not available.
-    """
+    """Get policy evaluator function if available."""
     try:
         from app.services.evaluator import evaluate_policies
         return evaluate_policies
@@ -154,13 +135,7 @@ async def trigger_remediation(
     payload: Dict[str, Any],
     remediator_url: str
 ) -> None:
-    """
-    Background task to trigger remediation actions with retry logic.
-
-    Args:
-        payload: Remediation request payload
-        remediator_url: URL of the remediator service
-    """
+    """Background task to trigger remediation actions with retry."""
     import httpx
 
     async with httpx.AsyncClient(timeout=10.0) as client:

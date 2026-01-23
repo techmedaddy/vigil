@@ -1,10 +1,4 @@
-"""
-Structured logging utility for Vigil monitoring system.
-
-Provides JSON-formatted logging with structured output suitable for ELK/Prometheus ingestion.
-Includes FastAPI middleware for request/response cycle tracking.
-Includes dedicated audit logging for policies and remediations.
-"""
+"""Structured JSON logging with request tracking and audit logging."""
 
 import json
 import logging
@@ -24,21 +18,10 @@ SERVICE_NAME = os.getenv("SERVICE_NAME", "vigil")
 
 
 class JSONFormatter(logging.Formatter):
-    """
-    Custom formatter that outputs logs in JSON format.
-    Includes timestamp, level, service, logger name, and message.
-    """
+    """Formatter that outputs logs as JSON with structured fields."""
 
     def format(self, record: logging.LogRecord) -> str:
-        """
-        Format log record as JSON.
-
-        Args:
-            record: LogRecord to format
-
-        Returns:
-            JSON-formatted log string
-        """
+        """Format log record as JSON string."""
         log_data = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": record.levelname,
@@ -70,15 +53,7 @@ class JSONFormatter(logging.Formatter):
 
 
 def get_logger(name: str) -> logging.Logger:
-    """
-    Get a configured logger instance with JSON formatting.
-
-    Args:
-        name: Logger name (typically __name__)
-
-    Returns:
-        Configured logger instance
-    """
+    """Get a configured logger with JSON formatting."""
     logger = logging.getLogger(name)
 
     # Only configure if not already configured
@@ -100,12 +75,9 @@ def get_logger(name: str) -> logging.Logger:
 
 
 class RequestIDFilter(logging.Filter):
-    """
-    Filter that injects request ID from context into log records.
-    """
+    """Filter that injects request ID into log records."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        """Add request_id to log record if available in context."""
         if not hasattr(record, "request_id"):
             record.request_id = getattr(
                 RequestContextVar, "request_id", "no-request-id"
@@ -114,10 +86,7 @@ class RequestIDFilter(logging.Filter):
 
 
 class RequestContextVar:
-    """
-    Simple context variable holder for request-scoped data.
-    In production, use contextvars.ContextVar for thread-safe context.
-    """
+    """Simple context holder for request-scoped data."""
 
     request_id: str = "no-request-id"
     path: str = "/"
@@ -125,39 +94,15 @@ class RequestContextVar:
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """
-    FastAPI middleware to log request/response cycles.
-
-    Logs:
-    - Request ID (auto-generated UUID or from header)
-    - HTTP method and path
-    - Status code
-    - Response duration in milliseconds
-    """
+    """FastAPI middleware to log request/response cycles with timing."""
 
     def __init__(self, app, logger: logging.Logger = None):
-        """
-        Initialize middleware.
-
-        Args:
-            app: FastAPI application
-            logger: Logger instance (uses default if not provided)
-        """
         super().__init__(app)
         self.logger = logger or get_logger(__name__)
         self.request_id_header = "X-Request-ID"
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        Process request and response, logging relevant information.
-
-        Args:
-            request: Incoming request
-            call_next: Next middleware/handler
-
-        Returns:
-            Response with logged information
-        """
+        """Process request, log it, and add request ID to response."""
         # Generate or extract request ID
         request_id = request.headers.get(self.request_id_header, str(uuid.uuid4()))
         RequestContextVar.request_id = request_id
@@ -228,10 +173,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 
 def configure_logging() -> None:
-    """
-    Configure root logger and suppress verbose third-party loggers.
-    Call once at application startup.
-    """
+    """Configure root logger and suppress verbose third-party loggers."""
     root_logger = logging.getLogger()
     root_logger.setLevel(LOG_LEVEL)
 
@@ -255,12 +197,7 @@ audit_logger.setLevel(logging.INFO)
 # --- Audit Logging Helper Functions ---
 
 def get_request_id() -> str:
-    """
-    Get current request ID from context if available.
-    
-    Returns:
-        Request ID string or "no-request-id" if not available
-    """
+    """Get current request ID from context."""
     return getattr(RequestContextVar, "request_id", "no-request-id")
 
 
@@ -272,25 +209,7 @@ def log_policy_evaluation(
     request_id: Optional[str] = None,
     additional_context: Optional[Dict[str, Any]] = None
 ) -> None:
-    """
-    Log a policy evaluation event for audit trail.
-    
-    Args:
-        policy_name: Name of the policy evaluated
-        condition: Condition expression or description
-        result: Whether the condition evaluated to true
-        severity: Policy severity level (INFO, WARNING, CRITICAL)
-        request_id: Optional request ID (auto-fetched if not provided)
-        additional_context: Optional dict with additional fields
-    
-    Example:
-        log_policy_evaluation(
-            policy_name="high_cpu_alert",
-            condition="cpu_usage > 80%",
-            result=True,
-            severity="CRITICAL"
-        )
-    """
+    """Log a policy evaluation event for audit trail."""
     if request_id is None:
         request_id = get_request_id()
     
@@ -321,25 +240,7 @@ def log_policy_violation(
     request_id: Optional[str] = None,
     additional_context: Optional[Dict[str, Any]] = None
 ) -> None:
-    """
-    Log a policy violation event when a condition is triggered.
-    
-    Args:
-        policy_name: Name of the policy that was violated
-        metrics: Dict of metrics that triggered the violation
-        action: Action to be taken (e.g., "SCALE_UP", "RESTART_SERVICE")
-        severity: Violation severity level (INFO, WARNING, CRITICAL)
-        request_id: Optional request ID (auto-fetched if not provided)
-        additional_context: Optional dict with additional fields
-    
-    Example:
-        log_policy_violation(
-            policy_name="high_cpu_alert",
-            metrics={"cpu_usage": 95.5, "threshold": 80},
-            action="SCALE_UP",
-            severity="CRITICAL"
-        )
-    """
+    """Log a policy violation event when a condition is triggered."""
     if request_id is None:
         request_id = get_request_id()
     
@@ -376,25 +277,7 @@ def log_remediation(
     request_id: Optional[str] = None,
     additional_context: Optional[Dict[str, Any]] = None
 ) -> None:
-    """
-    Log a remediation action execution for audit trail.
-    
-    Args:
-        target: Target resource (e.g., service name, pod name, instance ID)
-        action: Action performed (e.g., "RESTART", "SCALE_UP", "DRAIN_POD")
-        status: Status of the action (e.g., "SUCCESS", "FAILED", "IN_PROGRESS")
-        detail: Detailed message about the action
-        request_id: Optional request ID (auto-fetched if not provided)
-        additional_context: Optional dict with additional fields
-    
-    Example:
-        log_remediation(
-            target="web-service-1",
-            action="RESTART",
-            status="SUCCESS",
-            detail="Service restarted successfully after 2.5 seconds"
-        )
-    """
+    """Log a remediation action execution for audit trail."""
     if request_id is None:
         request_id = get_request_id()
     

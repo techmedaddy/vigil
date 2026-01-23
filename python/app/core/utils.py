@@ -1,10 +1,4 @@
-"""
-Utility functions for Vigil monitoring system.
-
-Provides:
-- Retry decorator with exponential backoff
-- Helper functions for common operations
-"""
+"""Utility functions including retry decorator with exponential backoff."""
 
 import asyncio
 import functools
@@ -30,25 +24,14 @@ def retry(
     """
     Decorator that retries a function on failure with configurable backoff.
 
-    Supports both sync and async functions. Uses exponential backoff by default.
-
     Args:
-        max_attempts: Maximum number of retry attempts (None uses config default)
-        backoff_strategy: Strategy for retry delays ('exponential', 'linear', 'constant')
-        base_delay: Base delay in seconds for backoff calculation
-        max_delay: Maximum delay between retries in seconds
-        exponential_base: Base for exponential backoff (default 2.0)
-        exceptions: Tuple of exception types to catch and retry
+        max_attempts: Max retry attempts (None uses config default)
+        backoff_strategy: 'exponential', 'linear', or 'constant'
+        base_delay: Base delay in seconds
+        max_delay: Maximum delay between retries
+        exponential_base: Base for exponential backoff
+        exceptions: Exception types to catch and retry
         log_retries: Whether to log retry attempts
-
-    Returns:
-        Decorated function with retry logic
-
-    Example:
-        @retry(max_attempts=3, backoff_strategy="exponential")
-        async def fetch_data():
-            # Database or API call
-            pass
     """
     def decorator(func: Callable):
         # Determine if function is async
@@ -172,19 +155,7 @@ def calculate_delay(
     exponential_base: float,
     max_delay: float
 ) -> float:
-    """
-    Calculate retry delay based on the backoff strategy.
-
-    Args:
-        attempt: Current attempt number (1-indexed)
-        strategy: Backoff strategy ('exponential', 'linear', 'constant')
-        base_delay: Base delay in seconds
-        exponential_base: Base for exponential calculation
-        max_delay: Maximum allowed delay
-
-    Returns:
-        Delay in seconds
-    """
+    """Calculate retry delay based on backoff strategy."""
     if strategy == "exponential":
         delay = base_delay * (exponential_base ** (attempt - 1))
     elif strategy == "linear":
@@ -200,15 +171,7 @@ def calculate_delay(
 
 
 def format_duration(seconds: float) -> str:
-    """
-    Format a duration in seconds to a human-readable string.
-
-    Args:
-        seconds: Duration in seconds
-
-    Returns:
-        Formatted string (e.g., "2.5s", "1m 30s")
-    """
+    """Format duration in seconds to human-readable string."""
     if seconds < 60:
         return f"{seconds:.2f}s"
     elif seconds < 3600:
@@ -222,15 +185,7 @@ def format_duration(seconds: float) -> str:
 
 
 def sanitize_tags(tags: dict) -> dict:
-    """
-    Sanitize tags dictionary by removing invalid characters and ensuring valid types.
-
-    Args:
-        tags: Dictionary of tags
-
-    Returns:
-        Sanitized tags dictionary
-    """
+    """Sanitize tags dictionary by removing invalid characters."""
     if not tags:
         return {}
     

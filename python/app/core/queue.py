@@ -1,8 +1,4 @@
-"""
-Queue management utilities for Vigil monitoring system.
-
-Provides Redis-backed task queue for asynchronous remediation actions.
-"""
+"""Redis-backed task queue for asynchronous remediation actions."""
 
 import json
 import time
@@ -17,10 +13,9 @@ logger = get_logger(__name__)
 
 
 class QueueClient:
-    """Redis-backed queue client for task management."""
+    """Redis-backed queue client for remediation task management."""
     
     def __init__(self):
-        """Initialize queue client with Redis connection."""
         self.settings = get_settings()
         self.redis_client = None
         self.queue_name = "remediation_queue"
@@ -28,7 +23,6 @@ class QueueClient:
         self._connect()
     
     def _connect(self):
-        """Establish Redis connection with error handling."""
         try:
             import redis
             self.redis_client = redis.from_url(
@@ -63,18 +57,7 @@ class QueueClient:
         log_retries=True
     )
     def enqueue_task(self, payload: Dict[str, Any]) -> bool:
-        """
-        Enqueue a remediation task into Redis queue.
-        
-        Args:
-            payload: Task payload with action_id, target, severity, timestamp
-        
-        Returns:
-            True if enqueued successfully
-        
-        Raises:
-            Exception: On Redis errors after retries
-        """
+        """Enqueue a remediation task. Returns True on success."""
         try:
             # Add enqueue timestamp and ID if not present
             if "enqueued_at" not in payload:
@@ -135,18 +118,7 @@ class QueueClient:
         log_retries=True
     )
     def dequeue_task(self, timeout: int = 5) -> Optional[Dict[str, Any]]:
-        """
-        Dequeue a task from Redis queue (blocking with timeout).
-        
-        Args:
-            timeout: Blocking timeout in seconds
-        
-        Returns:
-            Task payload dict or None if timeout
-        
-        Raises:
-            Exception: On Redis errors after retries
-        """
+        """Dequeue a task (blocking). Returns payload or None on timeout."""
         try:
             # BLPOP - blocking left pop with timeout
             result = self.redis_client.blpop(self.queue_name, timeout=timeout)
@@ -210,12 +182,7 @@ class QueueClient:
             raise
     
     def get_queue_length(self) -> int:
-        """
-        Get current queue length.
-        
-        Returns:
-            Number of tasks in queue
-        """
+        """Get current number of tasks in queue."""
         try:
             return self.redis_client.llen(self.queue_name)
         except Exception as e:
@@ -226,12 +193,7 @@ class QueueClient:
             return 0
     
     def get_queue_stats(self) -> Dict[str, Any]:
-        """
-        Get queue statistics.
-        
-        Returns:
-            Dictionary with queue stats
-        """
+        """Get queue statistics including counts and last processed task."""
         try:
             stats = {
                 "queue_length": self.get_queue_length(),
@@ -254,14 +216,12 @@ class QueueClient:
             }
     
     def _increment_stat(self, stat_name: str):
-        """Increment a stat counter."""
         try:
             self.redis_client.hincrby(self.stats_key, stat_name, 1)
         except Exception:
             pass  # Don't fail if stats update fails
     
     def _get_stat(self, stat_name: str) -> int:
-        """Get a stat counter value."""
         try:
             value = self.redis_client.hget(self.stats_key, stat_name)
             return int(value) if value else 0
@@ -269,7 +229,6 @@ class QueueClient:
             return 0
     
     def _set_last_processed(self, payload: Dict[str, Any]):
-        """Store last processed task info."""
         try:
             last_processed = {
                 "task_id": payload.get("task_id"),
@@ -286,7 +245,6 @@ class QueueClient:
             pass
     
     def _get_last_processed(self) -> Optional[Dict[str, Any]]:
-        """Get last processed task info."""
         try:
             data = self.redis_client.hget(self.stats_key, "last_processed_task")
             return json.loads(data) if data else None
@@ -294,11 +252,9 @@ class QueueClient:
             return None
     
     def increment_completed(self):
-        """Increment completed tasks counter."""
         self._increment_stat("tasks_completed")
     
     def increment_failed(self):
-        """Increment failed tasks counter."""
         self._increment_stat("tasks_failed")
 
 
@@ -307,12 +263,7 @@ _queue_client: Optional[QueueClient] = None
 
 
 def get_queue_client() -> QueueClient:
-    """
-    Get or create singleton queue client instance.
-    
-    Returns:
-        QueueClient instance
-    """
+    """Get singleton queue client instance."""
     global _queue_client
     if _queue_client is None:
         _queue_client = QueueClient()
@@ -321,39 +272,18 @@ def get_queue_client() -> QueueClient:
 
 # Convenience functions
 def enqueue_task(payload: Dict[str, Any]) -> bool:
-    """
-    Enqueue a remediation task.
-    
-    Args:
-        payload: Task payload
-    
-    Returns:
-        True if enqueued successfully
-    """
+    """Convenience function to enqueue a remediation task."""
     client = get_queue_client()
     return client.enqueue_task(payload)
 
 
 def dequeue_task(timeout: int = 5) -> Optional[Dict[str, Any]]:
-    """
-    Dequeue a remediation task.
-    
-    Args:
-        timeout: Blocking timeout in seconds
-    
-    Returns:
-        Task payload or None
-    """
+    """Convenience function to dequeue a remediation task."""
     client = get_queue_client()
     return client.dequeue_task(timeout)
 
 
 def get_queue_stats() -> Dict[str, Any]:
-    """
-    Get queue statistics.
-    
-    Returns:
-        Queue stats dictionary
-    """
+    """Convenience function to get queue statistics."""
     client = get_queue_client()
     return client.get_queue_stats()

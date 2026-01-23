@@ -1,9 +1,4 @@
-"""
-Database connection and session management for Vigil monitoring system.
-
-Uses SQLAlchemy with async support for both SQLite (development) and PostgreSQL (production).
-Provides FastAPI dependency injection for database sessions.
-"""
+"""Database connection and session management using SQLAlchemy async."""
 
 import os
 from typing import AsyncGenerator, Optional
@@ -32,8 +27,6 @@ Base = declarative_base()
 # --- ORM Models ---
 
 class Metric(Base):
-    """Metrics table for storing collected metrics."""
-
     __tablename__ = "metrics"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -46,8 +39,6 @@ class Metric(Base):
 
 
 class Action(Base):
-    """Actions table for storing remediation actions."""
-
     __tablename__ = "actions"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -62,8 +53,6 @@ class Action(Base):
 
 
 class Alert(Base):
-    """Alerts table for storing triggered alerts."""
-
     __tablename__ = "alerts"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -81,30 +70,21 @@ class Alert(Base):
 # --- Database Engine and Session Management ---
 
 class DatabaseManager:
-    """Manages database connections, pooling, and session lifecycle."""
+    """Manages async database connections, pooling, and sessions."""
 
     def __init__(self):
-        """Initialize database manager with settings."""
         self.settings = get_settings()
         self.engine: Optional[AsyncEngine] = None
         self.async_session_maker: Optional[async_sessionmaker] = None
         self._is_sqlite = self._detect_sqlite()
 
     def _detect_sqlite(self) -> bool:
-        """
-        Detect if DATABASE_URL is SQLite.
-
-        Returns:
-            True if SQLite, False otherwise
-        """
+        """Return True if DATABASE_URL is SQLite."""
         db_url = self.settings.DATABASE_URL
         return db_url.startswith("sqlite") or db_url.startswith("sqlite+")
 
     async def initialize(self) -> None:
-        """
-        Initialize database engine and create all tables.
-        Call once at application startup.
-        """
+        """Initialize database engine and create tables. Call at startup."""
         try:
             db_url = self.settings.DATABASE_URL
 
@@ -157,9 +137,7 @@ class DatabaseManager:
             raise
 
     async def create_tables(self) -> None:
-        """
-        Create all tables if they don't exist.
-        """
+        """Create all tables if they don't exist."""
         try:
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
@@ -169,38 +147,21 @@ class DatabaseManager:
             raise
 
     async def get_session(self) -> AsyncSession:
-        """
-        Get an async database session.
-
-        Returns:
-            AsyncSession instance
-        """
+        """Get an async database session."""
         if self.async_session_maker is None:
             raise RuntimeError("Database not initialized. Call initialize() first.")
 
         return self.async_session_maker()
 
     async def dispose(self) -> None:
-        """
-        Close all database connections and cleanup resources.
-        Call once at application shutdown.
-        """
+        """Close all database connections. Call at shutdown."""
         if self.engine is not None:
             await self.engine.dispose()
             logger.info("Database connections disposed")
 
     @asynccontextmanager
     async def get_session_context(self) -> AsyncGenerator[AsyncSession, None]:
-        """
-        Context manager for async database sessions.
-
-        Usage:
-            async with db_manager.get_session_context() as session:
-                result = await session.execute(query)
-
-        Yields:
-            AsyncSession instance
-        """
+        """Context manager for async database sessions with auto-commit/rollback."""
         session = await self.get_session()
         try:
             yield session
@@ -218,12 +179,7 @@ _db_manager: Optional[DatabaseManager] = None
 
 
 def get_db_manager() -> DatabaseManager:
-    """
-    Get or create global database manager instance.
-
-    Returns:
-        DatabaseManager instance
-    """
+    """Get the global database manager singleton."""
     global _db_manager
     if _db_manager is None:
         _db_manager = DatabaseManager()
@@ -231,20 +187,7 @@ def get_db_manager() -> DatabaseManager:
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    FastAPI dependency for database sessions.
-
-    Yields an AsyncSession for use in route handlers.
-
-    Usage:
-        @app.get("/metrics")
-        async def get_metrics(db: AsyncSession = Depends(get_db)):
-            result = await db.execute(select(Metric))
-            return result.scalars().all()
-
-    Yields:
-        AsyncSession instance
-    """
+    """FastAPI dependency for database sessions."""
     db_manager = get_db_manager()
     session = await db_manager.get_session()
     try:
@@ -263,38 +206,19 @@ get_db_async = get_db
 
 
 async def init_db() -> None:
-    """
-    Initialize database at application startup.
-
-    Call this in FastAPI startup event:
-        @app.on_event("startup")
-        async def startup():
-            await init_db()
-    """
+    """Initialize database at application startup."""
     db_manager = get_db_manager()
     await db_manager.initialize()
 
 
 async def close_db() -> None:
-    """
-    Close database connections at application shutdown.
-
-    Call this in FastAPI shutdown event:
-        @app.on_event("shutdown")
-        async def shutdown():
-            await close_db()
-    """
+    """Close database connections at application shutdown."""
     db_manager = get_db_manager()
     await db_manager.dispose()
 
 
 async def get_session() -> AsyncSession:
-    """
-    Get a database session. Convenience function for getting a session from the global db manager.
-    
-    Returns:
-        AsyncSession instance
-    """
+    """Get a database session from the global manager."""
     db_manager = get_db_manager()
     return await db_manager.get_session()
 

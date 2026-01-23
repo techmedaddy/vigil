@@ -1,12 +1,4 @@
-"""
-Middleware utilities for Vigil monitoring system.
-
-Provides production-ready middleware for:
-- Request ID tracking
-- Request/response timing and logging
-- Rate limiting (Redis-based)
-- Audit logging (database storage)
-"""
+"""FastAPI middleware for request tracking, timing, rate limiting, and audit logging."""
 
 import time
 import uuid
@@ -33,25 +25,10 @@ except ImportError:
 # --- Request ID Middleware ---
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware that generates a unique request ID for each request.
-
-    - Generates UUID if not present
-    - Attaches to response headers (X-Request-ID)
-    - Logs request ID with context
-    """
+    """Middleware that generates unique request IDs and attaches to responses."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        Process request with request ID tracking.
-
-        Args:
-            request: FastAPI Request object
-            call_next: Next middleware/endpoint handler
-
-        Returns:
-            Response with X-Request-ID header
-        """
+        """Process request with request ID tracking."""
         # Get or generate request ID
         request_id = request.headers.get("X-Request-ID")
         if not request_id:
@@ -91,25 +68,10 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 # --- Timing Middleware ---
 
 class TimingMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware that measures and logs request duration.
-
-    - Measures request processing time
-    - Logs path, method, status code, and latency
-    - Calculates request/response sizes
-    """
+    """Middleware that measures and logs request duration."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        Process request and measure timing.
-
-        Args:
-            request: FastAPI Request object
-            call_next: Next middleware/endpoint handler
-
-        Returns:
-            Response with timing metadata in request.state
-        """
+        """Process request and record timing metrics."""
         start_time = time.time()
         request_id = getattr(request.state, "request_id", "unknown")
 
@@ -177,23 +139,9 @@ class TimingMiddleware(BaseHTTPMiddleware):
 # --- Metrics Middleware ---
 
 class MetricsMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware for collecting Prometheus metrics.
-
-    - Tracks request counts by method, endpoint, and status code
-    - Records request latency by endpoint
-    - Configurable via settings (METRICS_ENABLED)
-    - Graceful fallback if prometheus_client unavailable
-    """
+    """Middleware for collecting Prometheus request metrics."""
 
     def __init__(self, app, enabled: bool = True):
-        """
-        Initialize metrics middleware.
-
-        Args:
-            app: FastAPI application
-            enabled: Whether metrics collection is enabled
-        """
         super().__init__(app)
         self.enabled = enabled and metrics_available
 
@@ -201,16 +149,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             logger.info("Metrics middleware initialized")
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        Process request and collect metrics.
-
-        Args:
-            request: FastAPI Request object
-            call_next: Next middleware/endpoint handler
-
-        Returns:
-            Response with metrics recorded
-        """
+        """Process request and record Prometheus metrics."""
         if not self.enabled:
             return await call_next(request)
 
@@ -242,14 +181,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 # --- Rate Limiting Middleware ---
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """
-    Redis-backed rate limiting middleware with per-endpoint configuration.
-
-    - Uses Redis for distributed rate limiting across instances
-    - Supports global and per-endpoint rate limits
-    - Graceful fallback if Redis unavailable
-    - Structured logging for rate limit events
-    """
+    """Redis-backed rate limiting middleware with per-endpoint configuration."""
 
     def __init__(
         self, 
@@ -259,16 +191,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         window_seconds: int = 60,
         endpoint_limits: dict = None
     ):
-        """
-        Initialize rate limit middleware.
-
-        Args:
-            app: FastAPI application
-            enabled: Whether rate limiting is enabled
-            requests_per_window: Maximum requests per time window (global default)
-            window_seconds: Time window in seconds (global default)
-            endpoint_limits: Dict mapping endpoint patterns to (max_requests, window_seconds)
-        """
         super().__init__(app)
         self.enabled = enabled
         self.requests_per_window = requests_per_window
@@ -303,15 +225,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 self.enabled = False
 
     def get_endpoint_limits(self, path: str) -> tuple:
-        """
-        Get rate limit configuration for a specific endpoint.
-
-        Args:
-            path: Request path
-
-        Returns:
-            Tuple of (max_requests, window_seconds)
-        """
+        """Get rate limit config for endpoint (max_requests, window_seconds)."""
         # Check for exact match
         if path in self.endpoint_limits:
             return self.endpoint_limits[path]
@@ -325,16 +239,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return (self.requests_per_window, self.window_seconds)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        Process request with rate limiting.
-
-        Args:
-            request: FastAPI Request object
-            call_next: Next middleware/endpoint handler
-
-        Returns:
-            Response (429 if rate limited)
-        """
+        """Process request with rate limiting (returns 429 if exceeded)."""
         request_id = getattr(request.state, "request_id", "unknown")
 
         if not self.enabled or not self.redis_client:
@@ -443,26 +348,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 # --- Audit Logging Middleware ---
 
 class AuditLoggingMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware for audit logging request/response metadata to database.
-
-    - Records all request/response details
-    - Supports compliance and monitoring requirements
-    - Includes error tracking and client information
-    - Graceful fallback if database unavailable
-    """
+    """Middleware for audit logging request/response metadata."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        Process request and log to audit table.
-
-        Args:
-            request: FastAPI Request object
-            call_next: Next middleware/endpoint handler
-
-        Returns:
-            Response with audit log recorded
-        """
+        """Process request and log audit information."""
         request_id = getattr(request.state, "request_id", "unknown")
 
         try:
@@ -516,21 +405,7 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
 # --- Middleware Registration Function ---
 
 def register_middleware(app) -> None:
-    """
-    Register all middleware with FastAPI application.
-
-    Should be called in main.py after creating the FastAPI app instance.
-
-    Args:
-        app: FastAPI application instance
-
-    Example:
-        from fastapi import FastAPI
-        from app.core.middleware import register_middleware
-
-        app = FastAPI()
-        register_middleware(app)
-    """
+    """Register all middleware with FastAPI application."""
     # Build endpoint-specific rate limits from config
     endpoint_limits = {}
     

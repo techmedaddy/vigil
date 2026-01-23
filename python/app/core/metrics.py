@@ -1,12 +1,4 @@
-"""
-Prometheus metrics for Vigil monitoring system.
-
-Provides metrics for:
-- HTTP request counting (method, endpoint, status)
-- HTTP request latency (endpoint)
-- Remediation action tracking (target, action, status)
-- Configurable via core/config.py
-"""
+"""Prometheus metrics for HTTP requests, remediation actions, and queue operations."""
 
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST, CollectorRegistry
 from app.core.logger import get_logger
@@ -94,35 +86,17 @@ drift_detection_latency = Histogram(
 
 
 def get_metrics() -> bytes:
-    """
-    Get Prometheus metrics in text format.
-
-    Returns:
-        Prometheus text format metrics as bytes
-    """
+    """Get Prometheus metrics in text format."""
     return generate_latest(_registry)
 
 
 def get_metrics_content_type() -> str:
-    """
-    Get MIME type for Prometheus metrics.
-
-    Returns:
-        MIME type string for Prometheus text format
-    """
+    """Get MIME type for Prometheus metrics."""
     return CONTENT_TYPE_LATEST
 
 
 def record_request(method: str, endpoint: str, status: int, latency_seconds: float) -> None:
-    """
-    Record HTTP request metrics.
-
-    Args:
-        method: HTTP method (GET, POST, etc.)
-        endpoint: Request path/endpoint
-        status: HTTP status code
-        latency_seconds: Request latency in seconds
-    """
+    """Record HTTP request metrics."""
     try:
         requests_total.labels(method=method, endpoint=endpoint, status=status).inc()
         request_latency.labels(endpoint=endpoint).observe(latency_seconds)
@@ -139,14 +113,7 @@ def record_request(method: str, endpoint: str, status: int, latency_seconds: flo
 
 
 def record_action(target: str, action: str, status: str) -> None:
-    """
-    Record remediation action metrics.
-
-    Args:
-        target: Target system or resource
-        action: Action name/type
-        status: Action status (success, failure, pending)
-    """
+    """Record remediation action metrics."""
     try:
         actions_total.labels(target=target, action=action, status=status).inc()
     except Exception as e:
@@ -162,12 +129,7 @@ def record_action(target: str, action: str, status: str) -> None:
 
 
 def record_ingest(metric_name: str) -> None:
-    """
-    Record metric ingestion event.
-
-    Args:
-        metric_name: Name of the metric being ingested (e.g., 'cpu_usage', 'memory_usage')
-    """
+    """Record metric ingestion event."""
     try:
         ingest_total.labels(metric_name=metric_name).inc()
     except Exception as e:
@@ -178,13 +140,7 @@ def record_ingest(metric_name: str) -> None:
 
 
 def record_policy_evaluation(policy_name: str, result: str) -> None:
-    """
-    Record policy evaluation event.
-
-    Args:
-        policy_name: Name of the policy evaluated
-        result: Evaluation result ('triggered', 'passed', 'error')
-    """
+    """Record policy evaluation event."""
     try:
         policy_evaluation_total.labels(policy_name=policy_name, result=result).inc()
     except Exception as e:
@@ -195,12 +151,7 @@ def record_policy_evaluation(policy_name: str, result: str) -> None:
 
 
 def record_worker_task(status: str) -> None:
-    """
-    Record worker task processing event.
-
-    Args:
-        status: Task processing status ('completed', 'failed')
-    """
+    """Record worker task processing event."""
     try:
         worker_tasks_total.labels(status=status).inc()
     except Exception as e:
@@ -211,12 +162,7 @@ def record_worker_task(status: str) -> None:
 
 
 def record_queue_operation(operation: str) -> None:
-    """
-    Record queue operation event.
-
-    Args:
-        operation: Operation type ('enqueue', 'dequeue')
-    """
+    """Record queue operation event."""
     try:
         queue_operations_total.labels(operation=operation).inc()
     except Exception as e:
@@ -227,12 +173,7 @@ def record_queue_operation(operation: str) -> None:
 
 
 def update_queue_length(length: int) -> None:
-    """
-    Update current queue length gauge.
-
-    Args:
-        length: Current number of tasks in queue
-    """
+    """Update current queue length gauge."""
     try:
         queue_length.set(length)
     except Exception as e:
@@ -243,12 +184,7 @@ def update_queue_length(length: int) -> None:
 
 
 def set_worker_active(active: bool) -> None:
-    """
-    Set worker active status.
-
-    Args:
-        active: True if worker is running, False otherwise
-    """
+    """Set worker active status (1=running, 0=stopped)."""
     try:
         worker_active.set(1 if active else 0)
     except Exception as e:
@@ -259,14 +195,7 @@ def set_worker_active(active: bool) -> None:
 
 
 def record_drift_detection(manifest_type: str, status: str, latency_seconds: float) -> None:
-    """
-    Record GitOpsD drift detection operation metrics.
-
-    Args:
-        manifest_type: Type of manifest checked (e.g., 'service', 'alert', 'policy')
-        status: Detection status ('drift_found', 'no_drift', 'error')
-        latency_seconds: Time taken for drift detection in seconds
-    """
+    """Record GitOpsD drift detection operation metrics."""
     try:
         drift_detection_latency.labels(manifest_type=manifest_type, status=status).observe(latency_seconds)
     except Exception as e:

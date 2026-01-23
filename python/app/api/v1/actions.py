@@ -1,8 +1,4 @@
-"""
-Actions endpoint for Vigil monitoring system.
-
-Handles POST/GET requests for remediation action management and tracking.
-"""
+"""Actions endpoint for remediation action management and tracking."""
 
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -42,7 +38,6 @@ router = APIRouter(
 # --- Enums ---
 
 class ActionStatus(str, Enum):
-    """Valid action statuses."""
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -53,15 +48,7 @@ class ActionStatus(str, Enum):
 # --- Pydantic Models ---
 
 class CreateActionRequest(BaseModel):
-    """
-    Request model for creating an action.
-
-    Attributes:
-        target: Target resource (e.g., 'web-service', 'database-pod')
-        action: Action type (e.g., 'restart', 'scale-up', 'drain')
-        status: Current status of the action
-        details: Optional detailed information about the action
-    """
+    """Request model for creating an action."""
 
     target: str = Field(
         ...,
@@ -86,28 +73,24 @@ class CreateActionRequest(BaseModel):
 
     @validator("target")
     def validate_target(cls, v):
-        """Ensure target is valid."""
         if not v or not v.strip():
             raise ValueError("Target cannot be empty")
         return v.strip()
 
     @validator("action")
     def validate_action(cls, v):
-        """Ensure action is valid."""
         if not v or not v.strip():
             raise ValueError("Action cannot be empty")
         return v.strip()
 
     @validator("status")
     def validate_status(cls, v):
-        """Ensure status is valid."""
         valid_statuses = [s.value for s in ActionStatus]
         if v not in valid_statuses:
             raise ValueError(f"Status must be one of {valid_statuses}")
         return v
 
     class Config:
-        """Pydantic model configuration."""
         schema_extra = {
             "example": {
                 "target": "web-service",

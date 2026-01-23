@@ -1,8 +1,4 @@
-"""
-Worker service for processing remediation tasks from Redis queue.
-
-Continuously polls for tasks and dispatches them to the remediator service.
-"""
+"""Worker service for processing remediation tasks from Redis queue."""
 
 import asyncio
 import httpx
@@ -23,7 +19,6 @@ class RemediationWorker:
     """Async worker that processes remediation tasks from queue."""
     
     def __init__(self):
-        """Initialize worker with configuration."""
         self.settings = get_settings()
         self.queue_client = get_queue_client()
         self.running = False
@@ -92,7 +87,6 @@ class RemediationWorker:
         )
     
     async def _worker_loop(self):
-        """Main worker loop - dequeue and process tasks."""
         logger.info("Worker loop started, waiting for tasks...")
         
         while self.running:
@@ -128,12 +122,7 @@ class RemediationWorker:
                 await asyncio.sleep(1)
     
     async def _process_task(self, task: dict):
-        """
-        Process a single remediation task.
-        
-        Args:
-            task: Task payload with action_id, target, severity, timestamp
-        """
+        """Process a single remediation task."""
         task_id = task.get("task_id", "unknown")
         action_id = task.get("action_id")
         request_id = task.get("request_id", task_id)
