@@ -1,0 +1,219 @@
+---
+# Vigil GitOps Daemon Deployment Configuration
+# Kubernetes manifest for deploying Vigil GitOpsD for manifest drift detection
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vigil-gitopsd-config
+  namespace: default
+  labels:
+    app: vigil
+    component: gitopsd
+data:
+  CONFIG_PATH: "/etc/vigil/gitopsd/config"
+  LOG_LEVEL: "INFO"
+  SERVICE_NAME: "vigil-gitopsd"
+  GITOPSD_INTERVAL: "30"
+  GITOPSD_MANIFESTS_PATH: "/manifests"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vigil-gitopsd-secrets
+  namespace: default
+  labels:
+    app: vigil
+    component: gitopsd
+type: Opaque
+stringData:
+  GITOPSD_COLLECTOR_URL: "http://vigil-api.default.svc.cluster.local:8000/api/v1/actions"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vigil-gitopsd
+  namespace: default
+  labels:
+    app: vigil
+    component: gitopsd
+    version: v1
+  annotations:
+    description: "Vigil GitOps Daemon for manifest drift detection"
+    maintainer: "vigil-team"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vigil
+      component: gitopsd
+  template:
+    metadata:
+      labels:
+        app: vigil
+        component: gitopsd
+        version: v1
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      serviceAccountName: vigil-gitopsd
+      automountServiceAccountToken: true
+      restartPolicy: Always
+      dnsPolicy: ClusterFirst
+      terminationGracePeriodSeconds: 30
+
+      initContainers:
+        - name: wait-for-api
+          image: busybox:1.35
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Vigil API..."
+              until wget -q --spider http://vigil-api.default.svc.cluster.local:8000/health; do
+                echo "API not ready, waiting..."
+                sleep 5
+              done
+              echo "API is ready!"
+
+      containers:
+        - name: vigil-gitopsd
+          image: vigil-gitopsd:latest
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: CONFIG_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-gitopsd-config
+                  key: CONFIG_PATH
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-gitopsd-config
+                  key: LOG_LEVEL
+            - name: GITOPSD_INTERVAL
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-gitopsd-config
+                  key: GITOPSD_INTERVAL
+            - name: GITOPSD_MANIFESTS_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: vigil-gitopsd-config
+                  key: GITOPSD_MANIFESTS_PATH
+            - name: GITOPSD_COLLECTOR_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vigil-gitopsd-secrets
+                  key: GITOPSD_COLLECTOR_URL
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep -f gitopsd || exit 1
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep -f gitopsd || exit 1
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/vigil/gitopsd/config
+              readOnly: true
+            - name: manifests-volume
+              mountPath: /manifests
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: config-volume
+          configMap:
+            name: vigil-gitopsd-config
+        - name: manifests-volume
+          configMap:
+            name: vigil-manifests
+        - name: tmp
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vigil-gitopsd
+  namespace: default
+  labels:
+    app: vigil
+    component: gitopsd
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vigil-gitopsd
+  labels:
+    app: vigil
+    component: gitopsd
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vigil-gitopsd
+  labels:
+    app: vigil
+    component: gitopsd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vigil-gitopsd
+subjects:
+  - kind: ServiceAccount
+    name: vigil-gitopsd
+    namespace: default

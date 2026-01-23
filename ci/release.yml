@@ -1,0 +1,168 @@
+name: Vigil Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/vigil
+
+jobs:
+  # -------------------------------------------
+  # Build & Push Docker Images
+  # -------------------------------------------
+  release-images:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        service:
+          - name: api
+            context: ./python
+            dockerfile: Dockerfile.api
+          - name: agent
+            context: ./go
+            dockerfile: Dockerfile.agent
+          - name: gitopsd
+            context: ./go
+            dockerfile: Dockerfile.gitopsd
+          - name: remediator
+            context: ./go
+            dockerfile: Dockerfile.remediator
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service.name }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == format('refs/tags/{0}', github.event.repository.default_branch) }}
+
+      - name: Build and push ${{ matrix.service.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.context }}/${{ matrix.service.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.version.outputs.VERSION }}
+            COMMIT=${{ github.sha }}
+
+  # -------------------------------------------
+  # Create GitHub Release
+  # -------------------------------------------
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: release-images
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" HEAD~10..HEAD)
+          fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Vigil v${{ steps.version.outputs.VERSION }}
+          body: |
+            ## Vigil v${{ steps.version.outputs.VERSION }}
+
+            ### Docker Images
+            Pull the latest images from GitHub Container Registry:
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-api:${{ steps.version.outputs.VERSION }}
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-agent:${{ steps.version.outputs.VERSION }}
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-gitopsd:${{ steps.version.outputs.VERSION }}
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-remediator:${{ steps.version.outputs.VERSION }}
+            ```
+
+            ### Changes
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            ### Full Changelog
+            https://github.com/${{ github.repository }}/compare/${{ env.PREVIOUS_TAG }}...v${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # -------------------------------------------
+  # Notify on Release
+  # -------------------------------------------
+  notify:
+    name: Release Notification
+    runs-on: ubuntu-latest
+    needs: [release-images, github-release]
+    if: always()
+
+    steps:
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Release status
+        run: |
+          if [ "${{ needs.release-images.result }}" == "success" ] && [ "${{ needs.github-release.result }}" == "success" ]; then
+            echo "✅ Release v${{ steps.version.outputs.VERSION }} completed successfully"
+          else
+            echo "❌ Release v${{ steps.version.outputs.VERSION }} failed"
+            exit 1
+          fi
