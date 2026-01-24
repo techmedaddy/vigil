@@ -42,6 +42,13 @@ try:
 except ImportError:
     queue_router_available = False
 
+# Import policy tester router if available
+try:
+    from app.api.v1.policy_tester import router as policy_tester_router
+    policy_tester_router_available = True
+except ImportError:
+    policy_tester_router_available = False
+
 # Import metrics if available
 try:
     from app.core import metrics
@@ -287,6 +294,9 @@ if queue_router_available:
     # Mount UI router for frontend compatibility at /api/v1/ui/queue/stats
     app.include_router(queue_ui_router, prefix="/api/v1")
 
+if policy_tester_router_available:
+    app.include_router(policy_tester_router, prefix="/api/v1")
+
 routers_list = ["ingest", "actions"]
 if policies_router_available:
     routers_list.append("policies")
@@ -296,6 +306,8 @@ if simulator_router_available:
     routers_list.append("simulator")
 if queue_router_available:
     routers_list.append("queue")
+if policy_tester_router_available:
+    routers_list.append("policy-tester")
 logger.info(
     f"Application initialized with routers: {', '.join(routers_list)} | background tasks: agent, gitopsd"
 )
