@@ -21,10 +21,7 @@ _background_tasks: List[asyncio.Task] = []
 async def start_agent_loop() -> asyncio.Task:
     """Start the periodic agent check loop for metrics and anomaly detection."""
     async def agent_check():
-        logger.info(
-            "Agent loop starting",
-            interval_seconds=settings.AGENT_INTERVAL
-        )
+        logger.info(f"Agent loop starting with {settings.AGENT_INTERVAL}s interval")
 
         while True:
             try:
@@ -63,53 +60,26 @@ async def start_agent_loop() -> asyncio.Task:
                         anomalies = _detect_anomalies(metrics)
 
                         if anomalies:
-                            logger.warning(
-                                "Anomalies detected",
-                                count=len(anomalies),
-                                anomalies=[
-                                    {
-                                        "metric": a["name"],
-                                        "value": a["value"],
-                                        "threshold": a["threshold"],
-                                        "severity": a["severity"]
-                                    }
-                                    for a in anomalies
-                                ]
-                            )
+                            logger.warning(f"Anomalies detected: {len(anomalies)} found")
 
                             # Log anomaly events for potential remediation
                             for anomaly in anomalies:
                                 logger.info(
-                                    "Anomaly detected",
-                                    metric_name=anomaly["name"],
-                                    metric_value=anomaly["value"],
-                                    threshold=anomaly["threshold"],
-                                    severity=anomaly["severity"]
+                                    f"Anomaly detected: {anomaly['name']}={anomaly['value']} "
+                                    f"(threshold={anomaly['threshold']}, severity={anomaly['severity']})"
                                 )
                         else:
-                            logger.debug(
-                                "Agent check complete",
-                                metrics_count=len(metrics),
-                                status="healthy"
-                            )
+                            logger.debug(f"Agent check complete: {len(metrics)} metrics, status=healthy")
 
                 except Exception as db_error:
-                    logger.error(
-                        "Agent check database error",
-                        error=str(db_error),
-                        exc_info=True
-                    )
+                    logger.error(f"Agent check database error: {db_error}", exc_info=True)
                     continue
 
             except asyncio.CancelledError:
                 logger.info("Agent loop cancelled, shutting down")
                 break
             except Exception as e:
-                logger.error(
-                    "Agent loop error",
-                    error=str(e),
-                    exc_info=True
-                )
+                logger.error(f"Agent loop error: {e}", exc_info=True)
                 # Continue after error
                 await asyncio.sleep(5)
 
@@ -124,10 +94,7 @@ async def start_agent_loop() -> asyncio.Task:
 async def start_gitopsd_loop() -> asyncio.Task:
     """Start the GitOps daemon loop for manifest drift detection."""
     async def gitopsd_sync():
-        logger.info(
-            "GitOpsD loop starting",
-            interval_seconds=settings.GITOPSD_INTERVAL
-        )
+        logger.info(f"GitOpsD loop starting with {settings.GITOPSD_INTERVAL}s interval")
 
         while True:
             try:
@@ -139,19 +106,7 @@ async def start_gitopsd_loop() -> asyncio.Task:
                 drift_events = _reconcile_manifests()
 
                 if drift_events:
-                    logger.warning(
-                        "Drift detected",
-                        count=len(drift_events),
-                        events=[
-                            {
-                                "resource_kind": e["resource_kind"],
-                                "resource_name": e["resource_name"],
-                                "desired_state": e["desired_state"],
-                                "actual_state": e["actual_state"]
-                            }
-                            for e in drift_events
-                        ]
-                    )
+                    logger.warning(f"Drift detected: {len(drift_events)} events")
 
                     # Log individual drift events
                     for event in drift_events:
@@ -174,17 +129,10 @@ async def start_gitopsd_loop() -> asyncio.Task:
                                 await session.commit()
 
                                 logger.info(
-                                    "Drift reconciliation action queued",
-                                    resource_kind=event["resource_kind"],
-                                    resource_name=event["resource_name"],
-                                    action_id=drift_action.id
+                                    f"Drift reconciliation action queued: {event['resource_kind']}/{event['resource_name']} (id={drift_action.id})"
                                 )
                         except Exception as db_error:
-                            logger.error(
-                                "Failed to record drift action",
-                                error=str(db_error),
-                                exc_info=True
-                            )
+                            logger.error(f"Failed to record drift action: {db_error}", exc_info=True)
                 else:
                     logger.debug("GitOpsD sync complete, no drift detected")
 
@@ -192,11 +140,7 @@ async def start_gitopsd_loop() -> asyncio.Task:
                 logger.info("GitOpsD loop cancelled, shutting down")
                 break
             except Exception as e:
-                logger.error(
-                    "GitOpsD loop error",
-                    error=str(e),
-                    exc_info=True
-                )
+                logger.error(f"GitOpsD loop error: {e}", exc_info=True)
                 # Continue after error
                 await asyncio.sleep(5)
 
@@ -262,6 +206,38 @@ def _reconcile_manifests() -> list:
     return drift_events
 
 
+# --- Queue History Recording ---
+
+async def start_queue_history_loop() -> asyncio.Task:
+    """Start the periodic queue history recording loop."""
+    async def _queue_history_loop():
+        logger.info("Queue history loop starting with 5s interval")
+
+        while True:
+            try:
+                await asyncio.sleep(5)  # Record every 5 seconds
+
+                try:
+                    from app.core.queue import record_queue_history as do_record
+                    do_record()
+                    logger.debug("Queue history sample recorded")
+                except Exception as e:
+                    logger.debug(f"Queue history recording failed: {e}")
+
+            except asyncio.CancelledError:
+                logger.info("Queue history loop cancelled, shutting down")
+                break
+            except Exception as e:
+                logger.error(f"Queue history loop error: {e}", exc_info=True)
+                await asyncio.sleep(5)
+
+    # Create and return task
+    task = asyncio.create_task(_queue_history_loop())
+    task.set_name("queue_history_loop")
+    _background_tasks.append(task)
+    return task
+
+
 # --- Task Lifecycle Management ---
 
 async def start_all_background_tasks() -> None:
@@ -279,6 +255,12 @@ async def start_all_background_tasks() -> None:
         logger.info("GitOpsD loop started")
     except Exception as e:
         logger.error("Failed to start GitOpsD loop", exc_info=True, extra={"error": str(e)})
+
+    try:
+        await start_queue_history_loop()
+        logger.info("Queue history loop started")
+    except Exception as e:
+        logger.error("Failed to start queue history loop", exc_info=True, extra={"error": str(e)})
 
     logger.info("All background tasks started", extra={"active_tasks": len(_background_tasks)})
 

@@ -20,6 +20,8 @@ class QueueClient:
         self.redis_client = None
         self.queue_name = "remediation_queue"
         self.stats_key = "remediation_queue:stats"
+        self.history_key = "remediation_queue:history"
+        self.history_max_samples = 60  # 5 minutes at 5-second intervals
         self._connect()
     
     def _connect(self):
@@ -256,6 +258,75 @@ class QueueClient:
     
     def increment_failed(self):
         self._increment_stat("tasks_failed")
+    
+    def record_history_sample(self):
+        """Record current queue depth to history for charting."""
+        try:
+            sample = {
+                "time": datetime.utcnow().isoformat(),
+                "depth": self.get_queue_length()
+            }
+            # Push to list and trim to max samples
+            self.redis_client.lpush(self.history_key, json.dumps(sample))
+            self.redis_client.ltrim(self.history_key, 0, self.history_max_samples - 1)
+        except Exception as e:
+            logger.debug(f"Failed to record history sample: {e}")
+    
+    def get_history(self) -> list:
+        """Get queue depth history samples."""
+        try:
+            raw = self.redis_client.lrange(self.history_key, 0, self.history_max_samples - 1)
+            # Parse and reverse to oldest-first order
+            history = [json.loads(s) for s in raw]
+            history.reverse()
+            return history
+        except Exception as e:
+            logger.debug(f"Failed to get history: {e}")
+            return []
+    
+    def get_extended_stats(self) -> Dict[str, Any]:
+        """Get extended queue statistics including success rate and history."""
+        try:
+            completed = self._get_stat("tasks_completed")
+            failed = self._get_stat("tasks_failed")
+            dequeued = self._get_stat("tasks_dequeued")
+            total_processed = completed + failed
+            success_rate = (completed / total_processed * 100) if total_processed > 0 else 0.0
+            
+            stats = {
+                # New fields matching frontend QueueStats interface
+                "queue_depth": self.get_queue_length(),
+                "completed": completed,
+                "failed": failed,
+                "success_rate": round(success_rate, 1),
+                "history": self.get_history(),
+                # Legacy fields for backward compatibility
+                "queue_length": self.get_queue_length(),
+                "tasks_enqueued": self._get_stat("tasks_enqueued"),
+                "tasks_dequeued": dequeued,
+                "tasks_failed": failed,
+                "tasks_completed": completed,
+                "last_processed_task": self._get_last_processed(),
+                "queue_name": self.queue_name,
+            }
+            return stats
+        except Exception as e:
+            logger.error(f"Failed to get extended queue stats: {e}")
+            return {
+                "queue_depth": 0,
+                "completed": 0,
+                "failed": 0,
+                "success_rate": 0.0,
+                "history": [],
+                "queue_length": 0,
+                "tasks_enqueued": 0,
+                "tasks_dequeued": 0,
+                "tasks_failed": 0,
+                "tasks_completed": 0,
+                "last_processed_task": None,
+                "queue_name": self.queue_name,
+                "error": str(e),
+            }
 
 
 # Singleton instance
@@ -287,3 +358,15 @@ def get_queue_stats() -> Dict[str, Any]:
     """Convenience function to get queue statistics."""
     client = get_queue_client()
     return client.get_queue_stats()
+
+
+def get_extended_queue_stats() -> Dict[str, Any]:
+    """Convenience function to get extended queue statistics with history."""
+    client = get_queue_client()
+    return client.get_extended_stats()
+
+
+def record_queue_history() -> None:
+    """Convenience function to record a queue depth history sample."""
+    client = get_queue_client()
+    client.record_history_sample()

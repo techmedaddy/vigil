@@ -35,6 +35,13 @@ try:
 except ImportError:
     simulator_router_available = False
 
+# Import queue router if available
+try:
+    from app.api.v1.queue import router as queue_router, ui_router as queue_ui_router
+    queue_router_available = True
+except ImportError:
+    queue_router_available = False
+
 # Import metrics if available
 try:
     from app.core import metrics
@@ -275,6 +282,11 @@ if simulator_router_available:
     # Also mount at /ui/simulator for frontend compatibility
     app.include_router(simulator_router, prefix="/api/v1/ui")
 
+if queue_router_available:
+    app.include_router(queue_router, prefix="/api/v1")
+    # Mount UI router for frontend compatibility at /api/v1/ui/queue/stats
+    app.include_router(queue_ui_router, prefix="/api/v1")
+
 routers_list = ["ingest", "actions"]
 if policies_router_available:
     routers_list.append("policies")
@@ -282,6 +294,8 @@ if settings_router_available:
     routers_list.append("settings")
 if simulator_router_available:
     routers_list.append("simulator")
+if queue_router_available:
+    routers_list.append("queue")
 logger.info(
     f"Application initialized with routers: {', '.join(routers_list)} | background tasks: agent, gitopsd"
 )
