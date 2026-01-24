@@ -4,7 +4,7 @@ import asyncio
 import random
 import time
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from enum import Enum
 
 import httpx
@@ -12,6 +12,27 @@ from app.core.logger import get_logger
 from app.core.config import get_settings
 
 logger = get_logger(__name__)
+
+# Try to import direct ingestion for in-process mode
+try:
+    from app.core.db import get_db_manager, Metric
+    direct_ingestion_available = True
+except ImportError:
+    direct_ingestion_available = False
+
+# Try to import policy evaluation
+try:
+    from app.core.policy import evaluate_policies
+    policy_evaluation_available = True
+except ImportError:
+    policy_evaluation_available = False
+
+# Try to import metrics for Prometheus
+try:
+    from app.core import metrics as prom_metrics
+    prometheus_available = True
+except ImportError:
+    prometheus_available = False
 
 
 class SimulatorMode(str, Enum):
@@ -44,6 +65,7 @@ class Simulator:
         self.events_malformed = 0
         self.started_at: Optional[datetime] = None
         self.last_event_at: Optional[datetime] = None
+        self.stopped_at: Optional[datetime] = None
         
         # Configuration
         self.target_rate = 100  # events per minute
@@ -52,8 +74,11 @@ class Simulator:
         self.timeout_rate = 0.0
         self.malformed_rate = 0.0
         
-        # API endpoint
-        self.api_url = f"http://localhost:{self.settings.PORT}"
+        # Use direct ingestion if available, else HTTP
+        self.use_direct_ingestion = direct_ingestion_available
+        
+        # API endpoint (for HTTP mode)
+        self.api_url = f"http://localhost:{self.settings.COLLECTOR_PORT}"
         
     def configure(
         self,
@@ -116,6 +141,7 @@ class Simulator:
             return
         
         self.running = False
+        self.stopped_at = datetime.utcnow()
         
         if self.task:
             self.task.cancel()
@@ -123,8 +149,9 @@ class Simulator:
                 await self.task
             except asyncio.CancelledError:
                 pass
+            self.task = None
         
-        runtime = (datetime.utcnow() - self.started_at).total_seconds() if self.started_at else 0
+        runtime = (self.stopped_at - self.started_at).total_seconds() if self.started_at else 0
         
         logger.info(
             "Simulator stopped",
@@ -241,13 +268,75 @@ class Simulator:
             await self._send_malformed_event()
             return
         
-        # Decide if this should timeout
-        timeout = 1.0 if random.random() < self.timeout_rate else 30.0
-        
         # Generate payload
         payload = self._generate_payload()
         
-        # Send to API
+        # Decide if this should timeout (only applies to HTTP mode)
+        should_timeout = random.random() < self.timeout_rate
+        
+        # Use direct ingestion if available, otherwise HTTP
+        if self.use_direct_ingestion and direct_ingestion_available:
+            await self._ingest_directly(payload, should_timeout)
+        else:
+            await self._ingest_via_http(payload, should_timeout)
+    
+    async def _ingest_directly(self, payload: Dict[str, Any], should_timeout: bool):
+        """
+        Ingest metric directly to database (in-process mode).
+        This ensures metrics flow through the same pipeline as real metrics.
+        """
+        try:
+            # Simulate timeout if requested
+            if should_timeout:
+                await asyncio.sleep(2.0)  # Simulate slow processing
+                self.events_timeout += 1
+                return
+            
+            db_manager = get_db_manager()
+            async with db_manager.get_session_context() as db:
+                # Create metric record
+                metric = Metric(
+                    name=payload.get("name"),
+                    value=float(payload.get("value", 0)),
+                    timestamp=datetime.utcnow()
+                )
+                db.add(metric)
+                await db.flush()
+                
+                # Record Prometheus metrics if available
+                if prometheus_available:
+                    try:
+                        prom_metrics.record_metric_ingested(
+                            metric_name=payload.get("name"),
+                            value=payload.get("value")
+                        )
+                    except Exception:
+                        pass
+                
+                # Trigger policy evaluation if available
+                if policy_evaluation_available:
+                    try:
+                        await evaluate_policies(metric)
+                    except Exception as e:
+                        logger.debug(f"Policy evaluation error: {e}")
+                
+                self.events_succeeded += 1
+                
+        except Exception as e:
+            self.events_failed += 1
+            logger.error(
+                "Direct ingestion failed",
+                extra={
+                    "event": "simulator_direct_ingestion_failed",
+                    "error": str(e),
+                    "metric_name": payload.get("name"),
+                }
+            )
+    
+    async def _ingest_via_http(self, payload: Dict[str, Any], should_timeout: bool):
+        """Ingest metric via HTTP API call."""
+        timeout = 1.0 if should_timeout else 30.0
+        
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(

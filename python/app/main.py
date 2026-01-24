@@ -28,6 +28,13 @@ try:
 except ImportError:
     settings_router_available = False
 
+# Import simulator router if available
+try:
+    from app.api.v1.simulator import router as simulator_router
+    simulator_router_available = True
+except ImportError:
+    simulator_router_available = False
+
 # Import metrics if available
 try:
     from app.core import metrics
@@ -119,6 +126,16 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("Application shutting down")
+    
+    # Stop simulator if running
+    try:
+        from app.services.simulator import get_simulator
+        simulator = get_simulator()
+        if simulator.running:
+            await simulator.stop()
+            logger.info("Simulator stopped during shutdown")
+    except Exception as e:
+        logger.warning(f"Error stopping simulator: {e}")
     
     # Stop policy runner
     if policy_runner_available:
@@ -253,11 +270,18 @@ if policies_router_available:
 if settings_router_available:
     app.include_router(settings_router, prefix="/api/v1")
 
+if simulator_router_available:
+    app.include_router(simulator_router, prefix="/api/v1")
+    # Also mount at /ui/simulator for frontend compatibility
+    app.include_router(simulator_router, prefix="/api/v1/ui")
+
 routers_list = ["ingest", "actions"]
 if policies_router_available:
     routers_list.append("policies")
 if settings_router_available:
     routers_list.append("settings")
+if simulator_router_available:
+    routers_list.append("simulator")
 logger.info(
     f"Application initialized with routers: {', '.join(routers_list)} | background tasks: agent, gitopsd"
 )
