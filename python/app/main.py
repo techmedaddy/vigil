@@ -21,6 +21,13 @@ try:
 except ImportError:
     policies_router_available = False
 
+# Import settings router if available
+try:
+    from app.api.v1.settings import router as settings_router
+    settings_router_available = True
+except ImportError:
+    settings_router_available = False
+
 # Import metrics if available
 try:
     from app.core import metrics
@@ -180,6 +187,43 @@ async def root_health_check():
     """Root health check endpoint for service discovery."""
     return {"status": "healthy", "service": "vigil"}
 
+
+# --- Remediator Endpoints (root level for Go remediator compatibility) ---
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.db import get_db
+
+# Import the remediator handlers from actions module
+try:
+    from app.api.v1.actions import (
+        record_remediator_result,
+        get_remediator_tasks,
+        RemediationResultRequest,
+        RemediationResultResponse,
+        RemediationTaskResponse
+    )
+    
+    @app.post("/remediator/results", include_in_schema=False)
+    async def root_remediator_results(
+        result: RemediationResultRequest,
+        db: AsyncSession = Depends(get_db)
+    ):
+        """Root-level endpoint for Go remediator compatibility."""
+        return await record_remediator_result(result, db)
+    
+    @app.get("/remediator/tasks", include_in_schema=False)
+    async def root_remediator_tasks(
+        limit: int = 10,
+        remediator_id: str = None,
+        db: AsyncSession = Depends(get_db)
+    ):
+        """Root-level endpoint for Go remediator compatibility."""
+        return await get_remediator_tasks(limit, remediator_id, db)
+    
+    logger.info("Remediator endpoints registered at /remediator/*")
+except ImportError as e:
+    logger.warning(f"Could not register remediator endpoints: {e}")
+
 # --- Metrics Endpoint ---
 if metrics_available and settings.METRICS_ENABLED:
     @app.get(settings.METRICS_ENDPOINT, include_in_schema=False)
@@ -206,7 +250,14 @@ app.include_router(actions_router, prefix="/api/v1")
 if policies_router_available:
     app.include_router(policies_router, prefix="/api/v1")
 
-routers_list = ["ingest", "actions", "policies"] if policies_router_available else ["ingest", "actions"]
+if settings_router_available:
+    app.include_router(settings_router, prefix="/api/v1")
+
+routers_list = ["ingest", "actions"]
+if policies_router_available:
+    routers_list.append("policies")
+if settings_router_available:
+    routers_list.append("settings")
 logger.info(
     f"Application initialized with routers: {', '.join(routers_list)} | background tasks: agent, gitopsd"
 )

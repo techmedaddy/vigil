@@ -253,6 +253,7 @@ class Settings(BaseSettings):
 
 # Global settings instance (singleton)
 _settings_instance: Optional[Settings] = None
+_runtime_overrides: dict = {}
 
 
 @lru_cache()
@@ -270,6 +271,35 @@ def reload_settings() -> Settings:
     get_settings.cache_clear()
     _settings_instance = None
     return get_settings()
+
+
+def set_runtime_override(key: str, value: any) -> None:
+    """Set a runtime override for a settings value."""
+    global _runtime_overrides
+    _runtime_overrides[key] = value
+
+
+def get_runtime_override(key: str, default: any = None) -> any:
+    """Get a runtime override value if set."""
+    return _runtime_overrides.get(key, default)
+
+
+def clear_runtime_overrides() -> None:
+    """Clear all runtime overrides."""
+    global _runtime_overrides
+    _runtime_overrides = {}
+
+
+def get_effective_setting(key: str) -> any:
+    """
+    Get the effective value for a setting.
+    Runtime overrides take precedence over config values.
+    """
+    if key in _runtime_overrides:
+        return _runtime_overrides[key]
+    
+    settings = get_settings()
+    return getattr(settings, key, None)
 
 
 # Module-level convenience access
