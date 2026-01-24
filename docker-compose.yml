@@ -51,7 +51,7 @@ services:
       METRICS_ENABLED: "true"
     command: >
       sh -c "
-        pip install --no-cache-dir fastapi uvicorn redis psycopg2-binary asyncpg pyyaml python-dotenv requests pydantic-settings sqlalchemy prometheus-client &&
+        pip install --no-cache-dir fastapi uvicorn redis psycopg2-binary asyncpg pyyaml python-dotenv requests pydantic-settings sqlalchemy prometheus-client httpx &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
     ports:
